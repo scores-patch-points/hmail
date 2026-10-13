@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy policy — hmail</title>
+    <meta name="description" content="What hmail does with your Google account data, what it stores, and where it goes." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/site.css" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="../"><img src="/favicon.svg" alt="" /><span>hmail</span></a>
+        <nav class="site" aria-label="Site">
+          <a href="../privacy/">Privacy</a>
+          <a href="../terms/">Terms</a>
+          <a href="../app/">Open app</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <h1>Privacy policy</h1>
+      <p class="meta">Last updated 13 October 2026</p>
+
+      <h2>Who we are</h2>
+      <p>
+        hmail is operated by hyphae ("we"). hmail is a web app that lets you send encrypted messages
+        through your own Gmail account. The Matrix homeserver it uses, <code>hyphae.social</code>,
+        is run by the same operator. Contact:
+        <a href="mailto:%VITE_SUPPORT_EMAIL%">%VITE_SUPPORT_EMAIL%</a>.
+      </p>
+
+      <h2>The short version</h2>
+      <ul>
+        <li>hmail asks Google for one permission: send email as you. It cannot read, list, search or delete your mail.</li>
+        <li>Your message is encrypted in your browser. Gmail, and Google, only ever receive scrambled text.</li>
+        <li>Your Google access token stays in your browser tab. We have no server that receives it.</li>
+        <li>We do not sell your data, show ads, or use Google data for anything except sending the messages you ask us to send.</li>
+      </ul>
+
+      <h2>Google user data we access</h2>
+      <table>
+        <thead>
+          <tr><th>Google permission</th><th>What hmail uses it for</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Your account's email address (<code>openid</code>, <code>email</code>)</td>
+            <td>To show which Gmail account is connected and to set the From address on messages you send.</td>
+          </tr>
+          <tr>
+            <td>Send email on your behalf (<code>gmail.send</code>)</td>
+            <td>
+              To deliver the encrypted messages you compose, from your own address, to the recipients
+              you choose. This is the only Gmail operation hmail performs.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        hmail does <strong>not</strong> request access to read, list, search, modify or delete messages,
+        labels, drafts, contacts, calendar, Drive files or any other Google data.
+      </p>
+
+      <h2>How your Google access token is handled</h2>
+      <p>
+        Google issues a short-lived access token to your browser when you click "Continue with
+        Google". hmail holds it in your browser tab's session storage and uses it only to call
+        Google's own services: the Gmail API to send your message, and Google's token-info service to
+        read your account's email address. It is not sent to hmail or to any other party, it is not
+        written to disk, and it is discarded when you close the tab or it expires. hmail does not
+        request a long-lived refresh token.
+      </p>
+
+      <h2>What leaves your browser, and where it goes</h2>
+      <table>
+        <thead>
+          <tr><th>Recipient</th><th>What they receive</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Google (Gmail)</strong></td>
+            <td>
+              Your address, your recipients' email addresses, and the ciphertext subject and body.
+              Google cannot read the plaintext, because the key never goes through Gmail.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Matrix homeserver (hyphae.social)</strong></td>
+            <td>
+              An account name derived from a one-way hash of your Gmail address (it is pseudonymous,
+              not anonymous: anyone who already knows your address can compute it); a password value
+              derived in your browser from your address and your site password, which the homeserver
+              stores only as a hash; your recipients' Matrix IDs; room names (the recipient's Matrix
+              ID); timestamps and IP addresses in server logs; and the encrypted key messages. The
+              message content and decryption key are end-to-end encrypted, so the homeserver
+              operator cannot read them.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Recipients</strong></td>
+            <td>
+              An email containing ciphertext, and, if you gave a Matrix ID for them, an encrypted
+              Matrix message carrying the key.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Google Fonts</strong></td>
+            <td>
+              The app page loads its typefaces from Google Fonts, so Google receives a standard web
+              request (including your IP address) for that. The landing, privacy and terms pages do
+              not.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>What is stored on your device</h2>
+      <ul>
+        <li><strong>Local storage:</strong> your Gmail address, your recipient lists (names, email addresses, Matrix IDs), and your Matrix session token and device ID.</li>
+        <li><strong>IndexedDB:</strong> the Matrix sync cache and your end-to-end encryption keys.</li>
+        <li><strong>Session storage:</strong> the Google access token, until the tab closes.</li>
+      </ul>
+      <p>
+        Your lists are kept in your browser; we do not keep a copy. Signing out of hmail removes the
+        Matrix session and encryption databases from your browser. Clearing the site's data in your
+        browser removes everything else.
+      </p>
+
+      <h2>Sharing, sale and advertising</h2>
+      <p>
+        We do not sell personal data, use it for advertising, or give it to data brokers. No person
+        at hmail reads your messages or your Google data, and we do not use it to train any AI or
+        machine-learning model. The only parties that receive data are Google and the Matrix
+        homeserver, as described above, to carry out the sends you request, and anyone we are
+        legally required to disclose information to.
+      </p>
+
+      <h2>Google API Services User Data Policy</h2>
+      <p>
+        hmail's use and transfer of information received from Google APIs adheres to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+        including the Limited Use requirements. We use Google user data only to provide and improve
+        the user-facing sending feature you asked for, we do not transfer it to others except as
+        necessary to provide that feature or to comply with law, and we do not allow humans to read it.
+      </p>
+
+      <h2>Retention and deletion</h2>
+      <ul>
+        <li><strong>Google access:</strong> you can revoke hmail's access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+        <li><strong>Browser data:</strong> stays until you sign out or clear site data.</li>
+        <li><strong>Matrix account:</strong> the account and its encrypted key messages remain on the homeserver until the account is deleted. To have your account deleted, email us at the address above.</li>
+        <li><strong>Sent email:</strong> messages already delivered sit in Gmail (yours and your recipients') as ciphertext, under those users' own control.</li>
+      </ul>
+
+      <h2>Security</h2>
+      <p>
+        Each message is encrypted with AES-256-GCM under a fresh key; keys are delivered with
+        Matrix's Megolm end-to-end encryption. No system is perfectly secure. The password for your
+        hmail account is derived from your Gmail address and your site password, so choose a long,
+        unique site password, and share it only with people you trust to send as you.
+      </p>
+
+      <h2>Children</h2>
+      <p>hmail is not directed at children under 13, and we do not knowingly collect their data.</p>
+
+      <h2>Changes</h2>
+      <p>
+        If we change this policy we will update the date above. If a change affects how we use
+        Google user data, we will seek your consent again where Google's policies require it.
+      </p>
+
+      <h2>Contact</h2>
+      <p><a href="mailto:%VITE_SUPPORT_EMAIL%">%VITE_SUPPORT_EMAIL%</a></p>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <p><a href="../">Home</a> · <a href="../privacy/">Privacy policy</a> · <a href="../terms/">Terms of service</a></p>
+      </div>
+    </footer>
+  </body>
+</html>

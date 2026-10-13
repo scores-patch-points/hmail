@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * hmail design tokens — Gmail-flavored.
+   * White surfaces, soft gray sidebar, Google-blue accents,
+   * Gmail-red for unread / important moments.
+   */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 9% 13%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 9% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 9% 13%;
+
+    /* Surrounding chrome (sidebar / toolbars). */
+    --surface: 220 23% 97%;
+
+    /* Primary = Google blue. Used for selected states + buttons. */
+    --primary: 217 89% 43%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 9% 13%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 6% 39%;
+
+    /* Hover. Light gray, very Gmail. */
+    --accent: 220 14% 95%;
+    --accent-foreground: 220 9% 13%;
+
+    /* Selected row tint = Gmail's #D3E3FD blueish. */
+    --selected: 217 90% 91%;
+    --selected-foreground: 217 89% 22%;
+
+    /* Gmail red — the icon color. Use sparingly for unread + important. */
+    --seal: 4 75% 49%;
+    --seal-foreground: 0 0% 100%;
+
+    --destructive: 4 75% 49%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 5% 86%;
+    --input: 220 5% 86%;
+    --ring: 217 89% 43%;
+
+    --radius: 0.6rem;
+  }
+
+  .dark {
+    --background: 220 9% 11%;
+    --foreground: 220 14% 92%;
+
+    --card: 220 9% 13%;
+    --card-foreground: 220 14% 92%;
+
+    --popover: 220 9% 13%;
+    --popover-foreground: 220 14% 92%;
+
+    --surface: 220 9% 14%;
+
+    --primary: 217 89% 65%;
+    --primary-foreground: 220 9% 11%;
+
+    --secondary: 220 9% 18%;
+    --secondary-foreground: 220 14% 90%;
+
+    --muted: 220 9% 18%;
+    --muted-foreground: 220 8% 64%;
+
+    --accent: 220 9% 22%;
+    --accent-foreground: 220 14% 92%;
+
+    --selected: 217 60% 26%;
+    --selected-foreground: 217 90% 88%;
+
+    --seal: 4 70% 60%;
+    --seal-foreground: 220 9% 11%;
+
+    --destructive: 4 70% 60%;
+    --destructive-foreground: 220 9% 11%;
+
+    --border: 220 6% 24%;
+    --input: 220 6% 24%;
+    --ring: 217 89% 65%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "kern";
+  }
+}
+
+@layer utilities {
+  /* No-op now — kept so older references don't break. */
+  .paper-grain {
+    background-color: hsl(var(--surface));
+  }
+
+  /* Hide scrollbars on mobile drawers without breaking scroll. */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+}

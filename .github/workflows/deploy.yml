@@ -1,0 +1,81 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The privacy policy and terms are rendered with a contact address, and
+      # Google's verification requires one. Refuse to publish pages with the
+      # literal placeholder in them.
+      - name: Require support email
+        env:
+          VITE_SUPPORT_EMAIL: ${{ vars.VITE_SUPPORT_EMAIL }}
+        run: |
+          if [ -z "$VITE_SUPPORT_EMAIL" ]; then
+            echo "Set the VITE_SUPPORT_EMAIL repo variable (Settings > Secrets and variables > Actions > Variables)." >&2
+            exit 1
+          fi
+
+      # Public client config from GitHub repo Variables (Settings → Secrets
+      # and variables → Actions → Variables). The Google client ID is public
+      # by design — it ships in the client bundle — so Variables, not Secrets.
+      # Deployed at the root of a custom domain (mail.hyphae.social, set in
+      # Settings → Pages), so the base path is "/" unless overridden.
+      - run: npm run build
+        env:
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/' }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_MATRIX_HOMESERVER: ${{ vars.VITE_MATRIX_HOMESERVER || 'https://hyphae.social' }}
+          VITE_OWNER: ${{ vars.VITE_OWNER || 'hyphae' }}
+          VITE_SUPPORT_EMAIL: ${{ vars.VITE_SUPPORT_EMAIL }}
+
+      # Fail the deploy if a placeholder survived the build, or the pages
+      # Google needs are missing.
+      - name: Check built pages
+        run: |
+          for f in dist/index.html dist/app/index.html dist/privacy/index.html dist/terms/index.html; do
+            test -f "$f" || { echo "missing $f" >&2; exit 1; }
+          done
+          if grep -l '%VITE_' dist/index.html dist/privacy/index.html dist/terms/index.html; then
+            echo "unreplaced %VITE_ placeholder in a built page" >&2
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
