@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ListsView } from "@/components/lists";
+import { CirclesView } from "@/components/circles";
 import { Settings } from "@/components/settings";
 import { ConnectGoogle } from "@/components/connect-google";
 import { getGmailSession } from "@/lib/gmail-oauth";
 
-type Tab = "lists" | "settings";
+type Tab = "lists" | "circles" | "settings";
 
 export function Dashboard({ email, onSignOut }: {
   email: string;
@@ -30,6 +31,13 @@ export function Dashboard({ email, onSignOut }: {
             className={cn("text-sm transition hover:text-foreground", tab === "lists" ? "font-bold text-seal" : "text-muted-foreground")}
           >
             Lists
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("circles")}
+            className={cn("text-sm transition hover:text-foreground", tab === "circles" ? "font-bold text-seal" : "text-muted-foreground")}
+          >
+            Circles
           </button>
           <button
             type="button"
@@ -69,6 +77,8 @@ export function Dashboard({ email, onSignOut }: {
         <div className="min-h-0 flex-1">
           {tab === "lists" ? (
             <ListsView from={email} />
+          ) : tab === "circles" ? (
+            <CirclesView />
           ) : (
             <Settings email={email} onSignOut={onSignOut} />
           )}
