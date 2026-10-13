@@ -31,7 +31,11 @@
     },
     "toggle-lens": {
       "suggested_key": { "default": "Alt+Shift+E" },
-      "description": "Flip between what you see and what the site sees"
+      "description": "Peek: flip between what you see and what the site sees"
+    },
+    "toggle-secure": {
+      "suggested_key": { "default": "Alt+Shift+L" },
+      "description": "Turn hyphae encryption on or off for this page"
     }
   }
 }

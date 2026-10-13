@@ -1,0 +1,8 @@
+First Name,Middle Name,Last Name,Title,Suffix,Initials,Web Page,Gender,Birthday,Anniversary,Location,Language,Internet Free Busy,Notes,E-mail Address,E-mail Type,E-mail Display Name,E-mail 2 Address,E-mail 2 Type,E-mail 2 Display Name,E-mail 3 Address,E-mail 3 Type,E-mail 3 Display Name,Primary Phone,Home Phone,Mobile Phone,Company,Department,Job Title
+Alan,,Turing,,,,,,,,,,,,alan@bletchley.example.org,SMTP,Alan Turing (alan@bletchley.example.org),,,,,,,,,,GC&CS,,
+Katherine,Coleman,Johnson,,,,,,,,,,,,KJohnson@nasa.example.gov,SMTP,,kcj@example.com,SMTP,,/O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP/CN=RECIPIENTS/CN=0123456789abcdef,EX,,,,,,,
+Margaret,,Hamilton,,,,,,,,,,,"Line one
+Line two, with comma",mhamilton@example.com,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,info@initech.example.com,,,,,,,,,,,,Initech,,
+Alan,,Turing,,,,,,,,,,,,ALAN@bletchley.example.org,,,turing@kings.example.ac.uk,,,,,,,,,,,
+No,,Mail,,,,,,,,,,,,,,,,,,,,,555-0100,,,,,

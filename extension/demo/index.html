@@ -39,7 +39,8 @@
     <main>
       <div class="bar">
         <button id="reveal" class="primary">1 · Reveal sealed messages</button>
-        <button id="lens">2 · Lens: flip what the site sees ⇄ what you see</button>
+        <button id="secure">★ Encryption on / off</button>
+        <button id="lens">2 · Peek: what the site sees ⇄ what you see</button>
         <span class="hint" id="lensNote">Right now the page shows exactly what the server delivered.</span>
       </div>
 
@@ -121,6 +122,12 @@
         document.getElementById("reveal").onclick = async function () {
           var r = await window.__hyphae.reveal(byKid);
           note.textContent = "Opened " + r.opened + " sealed message(s). Green = what you see.";
+        };
+        document.getElementById("secure").onclick = function () {
+          var r = window.__hyphae.setSecure("toggle");
+          note.textContent = r.secure
+            ? "Encryption ON: you see the message, and the page carries the secure look (frame, tint, green focus)."
+            : "Encryption OFF: the page exactly as the site delivered it.";
         };
         document.getElementById("lens").onclick = function () {
           var r = window.__hyphae.setLens("toggle");

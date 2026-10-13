@@ -1,0 +1,10 @@
+﻿Name,Given Name,Additional Name,Family Name,Yomi Name,Given Name Yomi,Additional Name Yomi,Family Name Yomi,Name Prefix,Name Suffix,Initials,Nickname,Short Name,Maiden Name,Birthday,Gender,Location,Billing Information,Directory Server,Mileage,Occupation,Hobby,Sensitivity,Priority,Subject,Notes,Language,Photo,Group Membership,E-mail 1 - Type,E-mail 1 - Value,E-mail 2 - Type,E-mail 2 - Value,E-mail 3 - Type,E-mail 3 - Value,Phone 1 - Type,Phone 1 - Value,Address 1 - Type,Address 1 - Formatted,Organization 1 - Type,Organization 1 - Name,Organization 1 - Title
+Ada Lovelace,Ada,,Lovelace,,,,,,,,,,,,,,,,,,,,,,,,,* myContacts,* Home,Ada@Example.com,Work,ada.lovelace@analytical.example.org,,,Mobile,+1 615 555 0100,,,,,
+"Smith, Robert",Robert,,Smith,,,,,,,,,,,,,,,,,,,,,,"Met at the conference.
+Second line of the note, with a comma.",,,* myContacts ::: Family,* ::: Work,bob@example.com ::: rsmith@work.example.net,,,,,,,,,,,
+,Grace,Brewster Murray,Hopper,,,,,,,,,,,,,,,,,,,,,,,,,,*,grace@navy.example.mil,,,,,,,,,,,
+Phone Only Pat,Pat,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Mobile,+1 615 555 0111,,,,,
+Ada L.,Ada,,L.,,,,,,,,,,,,,,,,,,,,,,,,,,,ada@example.com,,,,,,,,,,,
+Zoë Ångström,Zoë,,Ångström,,,,,,,,,,,,,,,,,,,,,,,,,,Home,zoe@xn--ngstrm-bua.example.com,,,,,,,,,,"Qu""ark, Inc.",
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,nameless@example.com,,,,,,,,,,Acme Rocket Co,
+Bad Address Bea,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,not-an-email,,bea@example.com,,,,,,,,,

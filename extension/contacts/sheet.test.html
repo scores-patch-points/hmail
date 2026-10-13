@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hyphae contacts sheet — local test page</title>
+<style>
+  /* A stand-in for Gmail's chrome, only so the panel has something to sit over. */
+  body{margin:0;font:14px/1.5 Roboto,Arial,sans-serif;color:#202124;background:#f6f8fc}
+  header{height:64px;display:flex;align-items:center;gap:16px;padding:0 16px;background:#f6f8fc;border-bottom:1px solid #dadce0}
+  header b{font-weight:400;font-size:22px;color:#5f6368}
+  [gh="cm"]{margin:8px 16px;padding:12px 20px;border-radius:16px;background:#c2e7ff;cursor:pointer;display:inline-block}
+  main{padding:16px}
+  #log{font:12px/1.5 ui-monospace,monospace;background:#fff;border:1px solid #dadce0;border-radius:8px;padding:8px 12px;margin-top:12px;max-width:640px;min-height:2.5em;white-space:pre-wrap}
+  .ctl button{font:inherit;margin-right:8px}
+</style>
+</head>
+<body>
+<header><b>Mail (test stand-in, not Gmail)</b></header>
+<div gh="cm" role="button" aria-label="Compose">Compose</div>
+<main>
+  <p class="ctl">
+    <button id="open" type="button">Open contacts</button>
+    <button id="annotate" type="button">annotate(["maya@example.org","dev@example.net","nobody@nowhere.test"])</button>
+  </p>
+  <p>Query string: <code>?n=500</code> contacts, <code>?hook=0</code> no composeTo hook, <code>?open=1</code> open at load, <code>?empty=1</code> an empty store, <code>?noport=1</code> no port.</p>
+  <div id="log" aria-live="polite"></div>
+</main>
+
+<script>
+  // This page is not Gmail: say so before sheet.js decides whether to run.
+  window.__hyphaeContactsTest = true;
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var log = document.getElementById("log");
+    function say(s) { log.textContent += s + "\n"; }
+    document.querySelector('[gh="cm"]').addEventListener("click", function () { say("Gmail Compose button pressed"); });
+
+    // --- a store: 6 hand-written people, then n generated ones --------------
+    var people = [
+      { id: "m1", name: "Maya Lin", emails: ["maya@example.org"], matrix: { mxid: "@maya:matrix.org", displayName: "maya" }, circleKid: "kid-7f3a91c2e0", sources: ["google", "matrix"], status: "ready", updated: 9 },
+      { id: "m2", name: "Dev Patel", emails: ["dev@example.net", "dpatel@work.example"], matrix: { mxid: "@dev:hs.example", displayName: "Dev" }, circleKid: null, sources: ["google", "matrix"], status: "needs-key", updated: 8 },
+      { id: "m3", name: "", emails: [], matrix: { mxid: "@ghost:matrix.org", displayName: "Ghost" }, circleKid: null, sources: ["matrix"], status: "matrix-only", updated: 7 },
+      { id: "m4", name: "Élodie Brun", emails: ["elodie@example.fr"], matrix: null, circleKid: null, sources: ["google"], status: "google-only", updated: 6 },
+      { id: "m5", name: "Ana Zed", emails: ["ana@zed.example"], matrix: null, circleKid: null, sources: ["google"], status: "google-only", updated: 5 },
+      { id: "m6", name: "Bo Quinn", emails: ["bo@quinn.example"], matrix: { mxid: "@bo:matrix.org", displayName: "Bo" }, circleKid: "kid-22b8d4a1c9", sources: ["google", "matrix"], status: "ready", updated: 4 }
+    ];
+    var n = parseInt(q.get("n") || "0", 10) || 0;
+    var first = ["Ada", "Ben", "Cleo", "Dara", "Eli", "Faye", "Gus", "Hana", "Ivo", "Jun", "Kit", "Lea"];
+    var last = ["Okoye", "Marsh", "Ivanov", "Cho", "Reyes", "Haas", "Nakamura", "Duval", "Singh", "Lund"];
+    for (var i = 0; i < n; i++) {
+      var f = first[i % first.length], l = last[(i * 7) % last.length];
+      var kind = i % 5; // 0 ready, 1 needs-key, 2 matrix-only, 3,4 google-only
+      var p = { id: "g" + i, name: f + " " + l + " " + (i + 1), emails: [], matrix: null, circleKid: null, sources: [], status: "google-only", updated: i };
+      if (kind !== 2) p.emails = [(f + "." + l + i + "@example.test").toLowerCase()];
+      if (kind <= 2) { p.matrix = { mxid: "@" + f.toLowerCase() + i + ":matrix.org", displayName: f }; p.sources.push("matrix"); }
+      if (kind === 0) { p.circleKid = "kid-" + (i % 3 ? "7f3a91c2e0" : "22b8d4a1c9"); p.status = "ready"; }
+      else if (kind === 1) p.status = "needs-key";
+      else if (kind === 2) p.status = "matrix-only";
+      people.push(p);
+    }
+    if (q.get("empty")) people = [];
+
+    var circles = [
+      { kid: "kid-7f3a91c2e0", name: "Family" },
+      { kid: "kid-22b8d4a1c9", name: "Studio" },
+      { kid: "kid-0c55e7b3a8", name: "Reading group" }
+    ];
+
+    function delay(v, ms) { return new Promise(function (r) { setTimeout(function () { r(v); }, ms || 30); }); }
+    function statusOf(c) {
+      if (!c.matrix) return "google-only";
+      if (c.circleKid) return "ready";
+      return c.emails.length ? "needs-key" : "matrix-only";
+    }
+
+    if (!q.get("noport")) {
+      window.__hyphaeContactsPort = {
+        all: function () { say("port.all()"); return delay(JSON.parse(JSON.stringify(people)), 60); },
+        search: function (s) {
+          say("port.search(" + JSON.stringify(s) + ")");
+          // the store knows a nickname the sheet cannot see
+          var hit = /\bbomber\b/i.test(s) ? [people.filter(function (c) { return c.id === "m6"; })[0]] : [];
+          return delay(JSON.parse(JSON.stringify(hit.filter(Boolean))), 40);
+        },
+        link: function (id, patch) {
+          say("port.link(" + JSON.stringify(id) + ", " + JSON.stringify(patch) + ")");
+          people.forEach(function (c) {
+            if (c.id !== id) return;
+            if (patch.circleKid !== undefined) c.circleKid = patch.circleKid;
+            if (patch.email && c.emails.indexOf(patch.email) < 0) c.emails.push(patch.email);
+            c.status = statusOf(c);
+          });
+          return delay(null, 80);
+        },
+        importGoogleCsv: function (text) {
+          say("port.importGoogleCsv(<" + text.length + " characters, read on this device>)");
+          var lines = text.split(/\r?\n/).filter(Boolean).slice(1);
+          lines.forEach(function (ln, i) {
+            var f = ln.split(",");
+            people.push({ id: "imp" + people.length + i, name: f[0], emails: [f[1]], matrix: null, circleKid: null, sources: ["google"], status: "google-only", updated: 99 });
+          });
+          return delay({ added: lines.length, merged: 0, skipped: 0 }, 120);
+        },
+        circles: function () { return delay(circles.slice(), 20); }
+      };
+    }
+
+    if (q.get("hook") !== "0") {
+      window.__hyphaeGmail = {
+        composeTo: function (email) {
+          say("__hyphaeGmail.composeTo(" + JSON.stringify(email) + ")  [stub: would open compose, fill To, encryption on]");
+          return Promise.resolve(true);
+        }
+      };
+    }
+
+    // A native file picker cannot be driven from a test, and the input lives in a
+    // closed shadow root. With ?autofile=1 a click on any file input is answered
+    // with a small generated Google-style CSV (or ?autofile=bad for a wrong type).
+    if (q.get("autofile")) {
+      var realClick = HTMLInputElement.prototype.click;
+      HTMLInputElement.prototype.click = function () {
+        if (this.type !== "file") return realClick.call(this);
+        var bad = q.get("autofile") === "bad";
+        var csv = "Name,E-mail 1 - Value\nNew Person,new@example.org\nOther Person,other@example.org\n";
+        var dt = new DataTransfer();
+        dt.items.add(new File([csv], bad ? "contacts.zip" : "contacts.csv", { type: "text/csv" }));
+        this.files = dt.files;
+        this.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+    }
+
+    document.getElementById("open").addEventListener("click", function () { window.__hyphaeContacts.open(); });
+    document.getElementById("annotate").addEventListener("click", function () {
+      window.__hyphaeContacts.annotateAsync(["maya@example.org", "dev@example.net", "nobody@nowhere.test"]).then(function (a) {
+        say("annotate -> " + a.map(function (x) { return x.label; }).join(" · "));
+      });
+    });
+    window.__sayFromTest = say;
+    window.addEventListener("load", function () {
+      if (!window.__hyphaeContacts) { say("sheet.js did not install window.__hyphaeContacts"); return; }
+      if (q.get("open")) window.__hyphaeContacts.open();
+    });
+  })();
+</script>
+<script src="sheet.js"></script>
+</body>
+</html>

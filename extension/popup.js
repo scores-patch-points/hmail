@@ -63,7 +63,7 @@
     return tabs[0];
   }
   async function inject(tab) {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["crypto.js", "content.js"] });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["crypto.js", "content.js", "gmail.js", "drive/hash.js", "drive/seal.js", "drive-page.js"] });
   }
   function tell(kind, data) {
     // Best effort; the ledger never gets in the way of the action.
@@ -134,6 +134,37 @@
       else if (r.locked) say(r.locked + " sealed item(s) here are for circles you haven't joined.", "err");
       else say("No sealed text on this page.", "");
     } catch (e) {
+      say("hyphae can't run on this page.", "err");
+    }
+  });
+
+  // The one switch: encryption on or off for this page.
+  async function paintSecure(on) {
+    $("secure").checked = !!on;
+    $("secureLabel").textContent = on ? "Encryption on — page is protected" : "Encryption off — the site's view";
+  }
+  async function loadSecure() {
+    try {
+      var tab = await activeTab();
+      await inject(tab);
+      var r = await chrome.tabs.sendMessage(tab.id, { hyphae: "secure", mode: "state" });
+      if (r && r.ok) paintSecure(r.secure);
+    } catch (e) {
+      $("secure").disabled = true;
+      $("secureLabel").textContent = "Encryption (can't run on this page)";
+    }
+  }
+  $("secure").addEventListener("change", async function () {
+    var want = $("secure").checked;
+    try {
+      var tab = await activeTab();
+      await inject(tab);
+      var r = await chrome.tabs.sendMessage(tab.id, { hyphae: "secure", mode: want ? "on" : "off" });
+      if (!r || !r.ok) throw new Error("no reply");
+      paintSecure(r.secure);
+      say(r.secure ? "Encryption on: you see what your circle sealed." : "Encryption off: this is what the site sees.", "ok");
+    } catch (e) {
+      $("secure").checked = !want;
       say("hyphae can't run on this page.", "err");
     }
   });
@@ -217,4 +248,5 @@
 
   load();
   loadAuto();
+  loadSecure();
 })();

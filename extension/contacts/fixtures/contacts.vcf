@@ -1,0 +1,56 @@
+﻿BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Google Inc.//Google Contacts//EN
+N:Lovelace;Ada;Augusta;;
+FN:Ada Lovelace
+item1.EMAIL;TYPE=INTERNET;TYPE=HOME:Ada@Example.com
+item1.X-ABLabel:
+EMAIL;TYPE=INTERNET;TYPE=WORK:ada.lovelace@analytical.example.org
+TEL;TYPE=CELL:+1 615 555 0100
+PHOTO;ENCODING=b;TYPE=JPEG:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+ AA
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Smith\, Jr.;Robert;;;
+FN:Robert Smith\, Jr. who has a really quite long formatted name so that th
+ e line must be folded
+ORG:Work\;Place;Dept
+EMAIL;TYPE=INTERNET:bob@example.com
+EMAIL;TYPE=INTERNET:rsmith@work.example.net
+NOTE:line one\nline two\, still the note
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:Grace Hopper
+N:Hopper;Grace;Brewster Murray;Rear Admiral;
+EMAIL;PREF=1:mailto:grace@navy.example.mil
+EMAIL;TYPE=home:GRACE@home.example.com
+KIND:individual
+END:VCARD
+BEGIN:VCARD
+VERSION:2.1
+N;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:=C3=85ngstr=C3=B6m;Zo=C3=AB
+FN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Zo=C3=AB =C3=85ngstr=
+=C3=B6m
+EMAIL;INTERNET:zoe@example.com
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Mail;No;;;
+FN:No Mail
+TEL:555-0100
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;;;;
+ORG:Acme Rocket Co
+EMAIL:nameless@example.com
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Ada L.
+EMAIL:ada@example.com
+END:VCARD

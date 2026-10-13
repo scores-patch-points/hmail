@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hyphae invite flow</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #eef1f8; color: #202124; font: 14px/1.45 "Helvetica Neue", Arial, sans-serif; }
+  header { padding: 10px 18px; background: #1b1d28; color: #b1a6d4; display: flex; gap: 14px; align-items: baseline; }
+  header b { letter-spacing: .3em; text-transform: uppercase; font-weight: 300; font-size: 13px; }
+  header span { color: #8a8a9c; font-size: 12px; }
+  #cap { padding: 10px 18px; background: #fff; border-bottom: 1px solid #dadce0; display: flex; gap: 12px; align-items: center; }
+  #cap .n { font: 600 12px/1 ui-monospace, Menlo, monospace; color: #fff; background: #5a46a8; border-radius: 10px; padding: 4px 8px; }
+  #cap .t { flex: 1; font-size: 15px; }
+  #cap button { border: 1px solid #c9c2e6; background: #f6f4fc; color: #3c3763; border-radius: 16px; padding: 5px 14px; cursor: pointer; font: inherit; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 18px 0; }
+  .col h3 { margin: 0 0 6px; font: 600 12px/1 system-ui; letter-spacing: .08em; text-transform: uppercase; color: #5f6368; }
+  iframe { width: 100%; height: 620px; border: 1px solid #dadce0; border-radius: 10px; background: #fff; }
+  .lower { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 18px 24px; }
+  .box { background: #fff; border: 1px solid #dadce0; border-radius: 10px; padding: 10px 14px; min-height: 90px; }
+  .box h4 { margin: 0 0 8px; font: 600 12px/1 system-ui; letter-spacing: .08em; text-transform: uppercase; color: #5f6368; }
+  .g { border-top: 1px solid #eee; padding: 6px 0; font-size: 13px; }
+  .g:first-of-type { border-top: 0; }
+  .g .h { color: #5f6368; }
+  .g pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all; font: 11px/1.35 ui-monospace, Menlo, monospace; color: #7c5a2a; background: #fbf3e6; border-radius: 6px; padding: 6px 8px; max-height: 120px; overflow: hidden; }
+  .sig { background: #e8f0fe; border-radius: 12px; padding: 8px 12px; margin: 4px 0; font-size: 13px; }
+  .sig b { font-family: ui-monospace, Menlo, monospace; letter-spacing: .1em; font-size: 15px; }
+</style>
+</head>
+<body>
+<header><b>hyphae</b><span>invite flow &middot; the real extension code and invite bridge, running against a stand-in Gmail (not Google's)</span></header>
+<div id="cap"><span class="n" id="n">0 / 10</span><span class="t" id="t">Press Next.</span><button id="next">Next</button><button id="all">Run all</button></div>
+<div class="cols">
+  <div class="col"><h3>Sam's Gmail</h3><iframe id="f_sam"></iframe></div>
+  <div class="col"><h3>Riley's Gmail</h3><iframe id="f_riley"></iframe></div>
+</div>
+<div class="lower">
+  <div class="box"><h4>Second channel (Signal, phone, in person)</h4><div id="signal"><span style="color:#80868b">Nothing yet.</span></div></div>
+  <div class="box"><h4>What Google stores</h4><div id="google"><span style="color:#80868b">Nothing yet.</span></div></div>
+</div>
+
+<script src="../crypto.js"></script>
+<script src="../contacts/core.js"></script>
+<script src="../invite/p256.js"></script>
+<script src="../invite/spake2.js"></script>
+<script src="../invite/hyinvite.js"></script>
+<script src="../invite-bridge.js"></script>
+<script>
+(function () {
+  "use strict";
+  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var memStore = function () { var m = {}; return { get: async function (k) { return m[k]; }, set: async function (k, v) { m[k] = JSON.parse(JSON.stringify(v)); } }; };
+
+  var MOCK = '<!doctype html><html><head><meta charset="utf-8"><style>' +
+    'html,body{margin:0;height:100%;font:13px/1.4 "Helvetica Neue",Arial,sans-serif;color:#202124;background:#f6f8fc}' +
+    '#top{display:flex;align-items:center;gap:10px;height:52px;padding:0 12px;background:#f6f8fc;border-bottom:1px solid #e0e3eb}' +
+    '#top .logo{font:600 18px/1 Arial;color:#c5221f}#top .search{flex:1;background:#eaf1fb;border-radius:20px;height:34px;padding:8px 14px;color:#5f6368}' +
+    '#top .right{display:flex;align-items:center;gap:8px}#top .ic{width:28px;height:28px;border-radius:50%;background:#dfe3ea}' +
+    '#top a.acct{width:32px;height:32px;border-radius:50%;background:#5a46a8;display:block;color:#fff;text-align:center;line-height:32px;text-decoration:none;font-weight:600}' +
+    '#rail{position:absolute;top:53px;left:0;width:150px;padding:12px}' +
+    '#rail .comp{background:#c2e7ff;border-radius:14px;padding:12px 14px;cursor:pointer;font-weight:500}' +
+    '#main{position:absolute;top:53px;left:160px;right:0;bottom:0;padding:12px 16px;overflow:auto}' +
+    '#main h2{margin:0 0 8px;font:500 15px Arial;color:#444}' +
+    '.adn{background:#fff;border:1px solid #dadce0;border-radius:8px;padding:10px 14px;margin-bottom:10px}' +
+    '.adn .hd{color:#5f6368;font-size:12px;margin-bottom:4px}.adn .sj{font-weight:600;margin-bottom:6px}' +
+    '.a3s{white-space:pre-wrap;word-break:break-all;font:13px/1.45 Arial,sans-serif}' +
+    '#dock{position:absolute;right:8px;bottom:0;top:60px;display:flex;flex-direction:column-reverse;gap:8px;align-items:flex-end;justify-content:flex-start;overflow:auto;pointer-events:none}' +
+    '.compose{pointer-events:auto;width:370px;flex:none;background:#fff;border-radius:8px 8px 0 0;box-shadow:0 8px 28px rgba(0,0,0,.3);display:flex;flex-direction:column}' +
+    '.ctitle{display:flex;justify-content:space-between;align-items:center;background:#404040;color:#fff;border-radius:8px 8px 0 0;padding:6px 10px;font-weight:500}' +
+    '.ctitle .btns{display:flex;align-items:center;gap:2px}.ctitle button{background:transparent;border:0;color:#fff;width:24px;height:24px;border-radius:12px;cursor:pointer}' +
+    '.addr,.subjRow{border-bottom:1px solid #eee;padding:2px 12px}.toRow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}' +
+    '.lab{color:#5f6368}.toRow input,.subjRow input{border:0;outline:0;flex:1;min-width:120px;padding:7px 0;font:13px Arial}' +
+    '.toRow .chip{background:#e8eaed;border-radius:12px;padding:1px 10px;font-size:12px}' +
+    '.mbody{min-height:56px;max-height:120px;padding:8px 12px;outline:0;overflow:auto;font:13px/1.5 Arial}' +
+    '.foot{padding:6px 12px}.send{display:inline-block;background:#0b57d0;color:#fff;border-radius:18px;padding:6px 18px;font-weight:500;cursor:pointer}' +
+    '</style></head><body>' +
+    '<div id="top"><span class="logo">M</span><div class="search">Search mail</div><div class="right"><span class="ic"></span><span class="ic"></span>' +
+    '<a class="acct" aria-label="Google Account: __NAME__ (__ADDR__)">__INITIAL__</a></div></div>' +
+    '<div id="rail"><div class="comp" role="button" gh="cm">Compose</div></div>' +
+    '<div id="main" role="main"><h2>Inbox</h2><div id="inbox"></div></div><div id="dock"></div>' +
+    '<script>' +
+    'var seq=0;function open(){seq++;var d=document.createElement("div");d.className="compose";d.setAttribute("role","dialog");' +
+    'd.innerHTML=\'<div class="ctitle"><span>New Message</span><span class="btns"><button aria-label="Minimize">_</button><button aria-label="Full screen">&#x2922;</button><button aria-label="Save &amp; close">&#x2715;</button></span></div>\'+' +
+    '\'<div class="addr"><div class="toRow"><span class="lab">To</span><input aria-label="To recipients"></div></div>\'+' +
+    '\'<div class="subjRow"><input name="subjectbox" placeholder="Subject"></div>\'+' +
+    '\'<div aria-label="Message Body" contenteditable="true" class="mbody"></div>\'+' +
+    '\'<div class="foot"><div role="button" aria-label="Send (Ctrl-Enter)" class="send">Send</div></div>\';' +
+    'document.getElementById("dock").appendChild(d);return d;}' +
+    'document.querySelector(\'[gh="cm"]\').addEventListener("click",open);' +
+    'document.addEventListener("input",function(e){var t=e.target;if(t&&t.getAttribute&&t.getAttribute("aria-label")==="To recipients"&&/,$/.test(t.value)){' +
+    'var c=document.createElement("span");c.className="chip";c.setAttribute("email",t.value.replace(/,$/,""));c.textContent=t.value.replace(/,$/,"");t.parentNode.insertBefore(c,t);t.value="";}});' +
+    'document.addEventListener("click",function(e){var s=e.target.closest&&e.target.closest(".send");if(!s)return;var c=s.closest(".compose");' +
+    'var to=[].map.call(c.querySelectorAll("[email]"),function(n){return n.getAttribute("email")});' +
+    'var sub=c.querySelector(\'input[name="subjectbox"]\').value;var body=c.querySelector(\'[aria-label="Message Body"]\').innerText;' +
+    'if(!to.length)return;parent.__deliver(window.__who,to,sub,body);c.remove();});' +
+    'document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest(\'[aria-label="Save & close"]\');if(b)b.closest(".compose").remove();});' +
+    '<\/script></body></html>';
+
+  var P = {};
+  var google = [];
+
+  window.__deliver = function (who, to, subject, body) {
+    google.push({ from: P[who].addr, to: to, subject: subject, body: body });
+    to.forEach(function (addr) {
+      Object.keys(P).forEach(function (k) {
+        if (P[k].addr === addr.toLowerCase()) receive(k, P[who].addr, subject, body);
+      });
+    });
+    paintGoogle();
+  };
+  function receive(k, from, subject, body) {
+    var d = P[k].w.document, inbox = d.getElementById("inbox");
+    var adn = d.createElement("div"); adn.className = "adn";
+    var hd = d.createElement("div"); hd.className = "hd";
+    var g = d.createElement("span"); g.className = "gD"; g.setAttribute("email", from); g.textContent = from;
+    hd.appendChild(g);
+    var sj = d.createElement("div"); sj.className = "sj"; sj.textContent = subject;
+    var a3s = d.createElement("div"); a3s.className = "a3s"; a3s.textContent = body;
+    adn.appendChild(hd); adn.appendChild(sj); adn.appendChild(a3s);
+    inbox.insertBefore(adn, inbox.firstChild);
+  }
+  function paintGoogle() {
+    var el = document.getElementById("google");
+    el.textContent = "";
+    google.forEach(function (m) {
+      var g = document.createElement("div"); g.className = "g";
+      var h = document.createElement("div"); h.className = "h";
+      h.textContent = m.from + "  →  " + m.to.join(", ") + "   ·   Subject: " + (m.subject || "(none)");
+      var pre = document.createElement("pre"); pre.textContent = m.body;
+      g.appendChild(h); g.appendChild(pre); el.appendChild(g);
+    });
+  }
+
+  async function person(key, name, addr, bridgeName) {
+    var frame = document.getElementById("f_" + key);
+    frame.srcdoc = MOCK.replace("__NAME__", name).replace("__ADDR__", addr).replace("__INITIAL__", name[0]);
+    await new Promise(function (r) { frame.onload = r; });
+    var w = frame.contentWindow;
+    w.__who = key;
+    var bridge = HyInviteBridge.create({ HyInvite: HyInvite, storage: memStore(), name: bridgeName });
+    var contacts = HyContacts.create({ storage: memStore() });
+    w.chrome = { runtime: { lastError: null, sendMessage: function (msg, cb) {
+      var done = function (r) { setTimeout(function () { cb(r); }, 0); };
+      if (msg.hyphae === "invite") bridge.handle(msg.op, msg.args).then(done);
+      else if (msg.hyphae === "contacts" && msg.op === "search") {
+        // what the worker does: the contacts store's answers plus people connected by invitation
+        Promise.all([contacts.search(msg.args[0]), bridge.handle("directory", { q: msg.args[0] })]).then(function (rs) {
+          done({ ok: true, result: HyInviteBridge.mergeSuggestions(rs[0], rs[1].people) });
+        }, function () { done({ ok: false }); });
+      }
+      else if (msg.hyphae === "contacts") contacts[msg.op].apply(contacts, msg.args || []).then(function (r) { done({ ok: true, result: r }); }, function () { done({ ok: false }); });
+      else done(null);
+    } } };
+    var srcs = await Promise.all(["../crypto.js", "../content.js", "../gmail.js"].map(function (u) { return fetch(u).then(function (r) { return r.text(); }); }));
+    srcs[2] = srcs[2].replace('location.hostname !== "mail.google.com"', "false");
+    srcs.forEach(function (s) { w.eval(s); });
+    w.__hyphaeGmail.setCircles({}, null);
+    P[key] = { key: key, name: name, addr: addr, w: w, bridge: bridge, G: w.__hyphaeGmail };
+  }
+  var $ = function (id) { return document.getElementById(id); };
+  var q = function (k, sel) { return P[k].w.document.querySelectorAll(sel); };
+  var lastCompose = function (k) { var c = q(k, ".compose"); return c[c.length - 1]; };
+  var sendBtn = function (c) { return c.querySelector(".send"); };
+  var click = function (el) { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: el.ownerDocument.defaultView })); };
+  var composeIdx = function (k) { return P[k].G.state().composes.length - 1; };
+  var code = null, hello = null;
+
+  var steps = [
+    ["Sam opens a new message and turns hyphae on with the switch in the title bar. Subject and message become hyphae's own fields; recipients too.", async function () {
+      var s = P.sam; click(q("sam", '[gh="cm"]')[0]); await wait(900);
+      var i = composeIdx("sam"); s.G.toggle(i); await wait(250);
+      s.G.pickTo(i, "riley@example.com");
+      s.G.fill(i, "Plan for Friday", "Hi Riley,\nHere is the real plan.\nBring the documents.");
+      await wait(200);
+    }],
+    ["Sam presses Send. Riley isn't connected yet, so nothing is sent; the message stays in the editor and hyphae offers an invitation.", async function () {
+      var c = q("sam", ".compose")[0]; click(sendBtn(c)); await wait(1200);
+    }],
+    ["Sam clicks Invite. A new message opens with a plain invitation (no product name, no code). hyphae shows the one-time code, only in its own panel.", async function () {
+      await P.sam.G.inviteClick(0, "riley@example.com"); await wait(1200);
+      var ui = P.sam.G.ui(0).invite.replace(/\s+/g, " ");
+      var m = /Google chat:\s*([A-Z0-9-]+)\s*Copy code/.exec(ui); code = m ? m[1] : null;
+    }],
+    ["Sam presses Send on the invitation. Google stores it; it carries only a public token.", async function () {
+      var c = lastCompose("sam"); click(sendBtn(c)); await wait(900);
+    }],
+    ["Sam gives Riley the code and how to open it by Signal: the second channel, which Google and a mailbox reader can't see.", async function () {
+      $("signal").innerHTML = "";
+      var a = document.createElement("div"); a.className = "sig";
+      a.innerHTML = "<b></b><br>Install the extension, open the email again, press Join, type this code. Works once, within a day.";
+      a.querySelector("b").textContent = code || "(code)";
+      $("signal").appendChild(a);
+      await wait(150);
+    }],
+    ["Riley's page shows the invitation. Riley types the code and presses Join; a reply is drafted. It proves the code without sending it.", async function () {
+      await wait(700);
+      await P.riley.G.famClick(0, code); await wait(1000);
+      var c = lastCompose("riley"); click(sendBtn(c)); await wait(900);
+    }],
+    ["Sam's page shows Riley's answer. Sam presses Accept: the code is checked (3 tries, then the invitation dies) and a confirmation is drafted to Riley.", async function () {
+      await wait(700);
+      var f = P.sam.G.fam(); var i = f.findIndex(function (x) { return x.kind === "hello"; });
+      await P.sam.G.famClick(i); await wait(1000);
+      var c = lastCompose("sam"); click(sendBtn(c)); await wait(900);
+    }],
+    ["Riley presses Finish on the confirmation. Both sides now hold a key that was never sent, and Riley is a verified contact.", async function () {
+      await wait(700);
+      var f = P.riley.G.fam(); var i = f.findIndex(function (x) { return x.kind === "welcome"; });
+      await P.riley.G.famClick(i); await wait(600);
+    }],
+    ["Sam presses Send on the held message. It goes out sealed to Riley alone: Gmail's subject is a plain label, the body a plain note and one token. Riley's page opens it and checks the signature.", async function () {
+      var c = q("sam", ".compose")[0]; click(sendBtn(c)); await wait(2200);
+    }],
+    ["Riley writes back. Typing \"sa\" in hyphae's own To field suggests Sam from hyphae's local directory, marked connected. None of those letters went to Gmail, and nothing was added to Google Contacts.", async function () {
+      var r = P.riley; click(q("riley", '[gh="cm"]')[0]); await wait(900);
+      var i = composeIdx("riley"); r.G.toggle(i); await wait(250);
+      r.G.typeTo(i, "sa"); await wait(700);
+    }],
+  ];
+  var at = 0, busy = false;
+  function caption() { $("n").textContent = at + " / " + steps.length; }
+  async function next() {
+    if (busy || at >= steps.length) return;
+    busy = true;
+    try { $("t").textContent = steps[at][0]; await steps[at][1](); at++; caption(); }
+    finally { busy = false; }
+  }
+  $("next").onclick = next;
+  $("all").onclick = async function () { while (at < steps.length) { await next(); await wait(500); } };
+  window.demo = { next: next, state: function () { return { at: at, code: code }; }, P: P, google: google };
+
+  (async function boot() {
+    await person("sam", "Sam", "sam@example.com", "Sam");
+    await person("riley", "Riley", "riley@example.com", "Riley");
+    $("t").textContent = "Ready. Press Next to start.";
+    window.__ready = true;
+  })();
+})();
+</script>
+</body>
+</html>

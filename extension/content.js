@@ -18,18 +18,28 @@
   "use strict";
   if (window.__hyphae) return; // already injected into this page
 
+  // Lavender on the page for what you can read; amber for what the site stores.
   var CSS =
     ":host{all:initial}" +
     ".item{font:inherit;border-radius:3px;padding:0 2px}" +
-    ".plain{background:rgba(34,139,34,.13);box-shadow:inset 0 -1px 0 rgba(34,139,34,.55)}" +
-    ".site{font:11px/1.35 ui-monospace,Menlo,monospace;background:rgba(180,83,9,.13);" +
-    "box-shadow:inset 0 -1px 0 rgba(180,83,9,.6);word-break:break-all;color:#7c2d12}";
+    ".plain{background:rgba(147,139,178,.18);box-shadow:inset 0 -1px 0 rgba(125,107,184,.6)}" +
+    ".site{font:11px/1.35 ui-monospace,Menlo,monospace;background:rgba(201,160,106,.14);" +
+    "box-shadow:inset 0 -1px 0 rgba(201,160,106,.6);word-break:break-all;color:#7c5a2a}" +
+    // a formatted message: block layout, quiet list/quote/link styling
+    ".rich{display:block;padding:2px 6px}" +
+    ".rich a{color:#5a46a8}" +
+    ".rich ul,.rich ol{margin:4px 0 4px 22px;padding:0}" +
+    ".rich blockquote{margin:6px 0;padding-left:10px;border-left:3px solid #c9c2e6;color:#555}";
 
   var observer = null;
   var revealCircles = null;
   var records = [];   // one per opened token: { host, inner, plain, token }
   var lens = "plain"; // "plain" = what you see · "site" = what the site sees
   var badge = null;   // { host, label }
+  var secure = false;     // the one switch: on = encrypted view + secure look
+  var userChose = false;  // once the person flips it, automatic changes stop
+  var frame = null;       // the page-wide frame + tint
+  var fieldSheet = null;  // focus / caret / selection styling for the page
 
   // ---- focused field --------------------------------------------------------
 
@@ -75,14 +85,14 @@
     var shadow = host.attachShadow({ mode: "closed" });
     var style = document.createElement("style");
     style.textContent =
-      ".card{font:12px/1.4 system-ui,sans-serif;background:#1c1917;color:#f5f5f4;border-radius:8px;" +
-      "padding:8px 10px;box-shadow:0 4px 18px rgba(0,0,0,.35);max-width:340px;cursor:pointer}" +
-      ".k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.65;margin-top:6px}" +
+      ".card{font:300 12px/1.4 'Helvetica Neue','SF Pro Display',system-ui,sans-serif;background:#1b1d28;color:#b1a6d4;" +
+      "border:1px solid #313140;border-radius:10px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.35);" +
+      "max-width:340px;cursor:pointer}" +
+      ".k{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8a8a9c;margin-top:6px}" +
       ".k:first-child{margin-top:0}" +
       ".v{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all;white-space:pre-wrap}" +
-      ".you{color:#86efac}.them{color:#fdba74}" +
-      ".pill{display:flex;gap:8px;align-items:center}" +
-      ".dot{width:8px;height:8px;border-radius:50%}";
+      ".you{color:#cfc8ec}.them{color:#c9a06a}" +
+      ".pill{display:flex;gap:10px;align-items:center}";
     shadow.appendChild(style);
     (document.body || document.documentElement).appendChild(host);
     return { host: host, shadow: shadow };
@@ -93,25 +103,43 @@
     var w = floating("right:14px;bottom:14px;");
     var card = document.createElement("div");
     card.className = "card pill";
-    var dot = document.createElement("span"); dot.className = "dot";
     var label = document.createElement("span");
-    card.appendChild(dot); card.appendChild(label);
-    card.title = "Click to switch what you're looking at";
-    card.addEventListener("click", function () { setLens(lens === "plain" ? "site" : "plain"); });
+    var mark = makeMark(label);
+    card.appendChild(label);
+    card.title = "Click to turn hyphae encryption on or off";
+    card.addEventListener("click", function () { userChose = true; setSecure("toggle"); });
     w.shadow.appendChild(card);
-    badge = { host: w.host, dot: dot, label: label };
+    badge = { host: w.host, mark: mark, label: label };
     paintBadge();
   }
   function paintBadge() {
     if (!badge) return;
     var n = records.filter(function (r) { return r.host.isConnected; }).length;
-    if (lens === "plain") {
-      badge.dot.style.background = "#4ade80";
-      badge.label.textContent = "hyphae · you see the message (" + n + ")";
+    var count = n ? " (" + n + ")" : "";
+    if (secure && lens === "site") {
+      badge.mark.set(true, "#c9a06a");
+      badge.label.textContent = "hyphae · encryption on · peeking at the site's view" + count;
+    } else if (secure) {
+      badge.mark.set(true, "#c9bff0");
+      badge.label.textContent = "hyphae · encryption on · you see the message" + count;
     } else {
-      badge.dot.style.background = "#fb923c";
-      badge.label.textContent = "hyphae · the site sees ciphertext (" + n + ")";
+      badge.mark.set(false, "#8a8a9c");
+      badge.label.textContent = "hyphae · encryption off · the site's view" + count;
     }
+  }
+
+  // No icon: the badge is the word and its state. The state colours the text.
+  function makeMark(label) {
+    return { set: function (on, color) { label.style.color = color; label.style.fontWeight = on ? "500" : "300"; } };
+  }
+
+  /** Tell the worker, so the toolbar icon follows the page. Best effort. */
+  function announce() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ hyphae: "secure-state", secure: secure }, function () { void chrome.runtime.lastError; });
+      }
+    } catch (e) { /* the page keeps working without it */ }
   }
 
   function showInspector(plain, token) {
@@ -151,6 +179,7 @@
       var token = await HyCrypto.seal(circle, plain);
       setInputValue(el, value.slice(0, start) + token + value.slice(end));
       showInspector(plain, token);
+      if (!userChose && !secure) setSecure("on");
       return { ok: true, sealed: plain.length };
     }
 
@@ -167,6 +196,7 @@
         return { ok: false, reason: "This editor wouldn't accept the sealed text." };
       }
       showInspector(text, tok);
+      if (!userChose && !secure) setSecure("on");
       return { ok: true, sealed: text.length };
     }
 
@@ -185,10 +215,100 @@
     return false;
   }
 
+  // ---- rich text ------------------------------------------------------------
+  // A formatted message travels sealed as a small structured document, not HTML:
+  //   "hyrt1:" + JSON of nodes, where a node is a string or { t, c?, h? }.
+  // Only the node types below exist, so there is no HTML to parse and nothing a
+  // sender can smuggle in: unknown elements are unwrapped to their text, links
+  // must be http(s) or mailto, and the reader rebuilds it with DOM calls.
+  var RICH_PREFIX = "hyrt1:";
+  var RICH_TAGS = {
+    B: "b", STRONG: "b", I: "i", EM: "i", U: "u", S: "s", STRIKE: "s", DEL: "s",
+    A: "a", BR: "br", P: "p", DIV: "p", UL: "ul", OL: "ol", LI: "li", BLOCKQUOTE: "q",
+  };
+  var RICH_EL = { b: "b", i: "i", u: "u", s: "s", a: "a", br: "br", p: "div", ul: "ul", ol: "ol", li: "li", q: "blockquote" };
+
+  function safeHref(h) {
+    var v = String(h || "").trim();
+    return /^(https?:\/\/|mailto:)/i.test(v) ? v : null;
+  }
+  function richFromNode(node) {
+    var out = [];
+    node.childNodes.forEach(function (n) {
+      if (n.nodeType === 3) { if (n.nodeValue) out.push(n.nodeValue); return; }
+      if (n.nodeType !== 1) return;
+      var t = RICH_TAGS[n.tagName];
+      if (!t) { out.push.apply(out, richFromNode(n)); return; } // unknown: keep its text
+      if (t === "br") { out.push({ t: "br" }); return; }
+      var o = { t: t, c: richFromNode(n) };
+      if (t === "a") {
+        var href = safeHref(n.getAttribute("href"));
+        if (!href) { out.push.apply(out, o.c); return; }
+        o.h = href;
+      }
+      out.push(o);
+    });
+    return out;
+  }
+  /** An editor element's contents as the string that gets sealed. */
+  function richEncode(editorEl) { return RICH_PREFIX + JSON.stringify(richFromNode(editorEl)); }
+
+  function richBuild(nodes, parent, depth) {
+    if (depth > 24) return;
+    nodes.forEach(function (n) {
+      if (typeof n === "string") { parent.appendChild(document.createTextNode(n)); return; }
+      if (!n || typeof n !== "object" || !RICH_EL[n.t]) return;
+      var el = document.createElement(RICH_EL[n.t]);
+      if (n.t === "a") {
+        var href = safeHref(n.h);
+        if (!href) { richBuild(Array.isArray(n.c) ? n.c : [], parent, depth + 1); return; }
+        el.setAttribute("href", href);
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener noreferrer");
+      }
+      if (n.t !== "br" && Array.isArray(n.c)) richBuild(n.c, el, depth + 1);
+      parent.appendChild(el);
+    });
+  }
+  /** Draw a formatted payload into `container`. False if it isn't one. */
+  function richRender(plain, container) {
+    if (typeof plain !== "string" || plain.indexOf(RICH_PREFIX) !== 0) return false;
+    var tree;
+    try { tree = JSON.parse(plain.slice(RICH_PREFIX.length)); } catch (e) { return false; }
+    if (!Array.isArray(tree)) return false;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    richBuild(tree, container, 0);
+    return true;
+  }
+
+  /**
+   * A message sealed to a pair circle carries a signed envelope: {"e":{body,name,...},"s":sig}.
+   * Show its body, and its real subject. Authenticity is not checked here, so no sender
+   * is named; the worker's `open` is what verifies.
+   */
+  function unwrapEnvelope(plain) {
+    try {
+      var p = JSON.parse(plain);
+      if (p && p.e && p.e.v === 1 && typeof p.e.body === "string") {
+        return { body: p.e.body, subject: (p.e.kind === "text" && typeof p.e.name === "string") ? p.e.name : "" };
+      }
+    } catch (e) { /* not an envelope */ }
+    return null;
+  }
+
   function paint(rec) {
     if (lens === "plain") {
-      rec.inner.textContent = rec.plain;
-      rec.inner.className = "item plain";
+      var env = unwrapEnvelope(rec.plain);
+      var shown = env ? env.body : rec.plain;
+      var rich = richRender(shown, rec.inner);
+      if (!rich) rec.inner.textContent = shown;
+      if (env && env.subject) {
+        var hd = document.createElement("div");
+        hd.style.cssText = "font-weight:600;margin-bottom:4px;";
+        hd.textContent = env.subject;
+        rec.inner.insertBefore(hd, rec.inner.firstChild);
+      }
+      rec.inner.className = "item plain" + (rich || (env && env.subject) ? " rich" : "");
       rec.inner.title = "Sealed with hyphae — this is what you see";
     } else {
       rec.inner.textContent = rec.token;
@@ -238,20 +358,71 @@
     for (var i = 0; i < nodes.length; i++) await revealNode(nodes[i], circlesByKid, stats);
   }
 
+  // A token can be split across sibling blocks — Gmail renders one wrapped line
+  // per <div> — so no single text node holds all of it. Find a node where a token
+  // starts, join the text nodes that follow it in document order up to the "~",
+  // and replace that whole run with the opened text.
+  var TOKEN_START = /h\s*y\s*1\s*\./;
+  async function revealSpanning(root, circlesByKid, stats) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    var all = [], n;
+    while ((n = walker.nextNode())) all.push(n);
+    for (var i = 0; i < all.length; i++) {
+      var first = all[i];
+      var v = first.nodeValue;
+      if (!v || !first.parentNode || isInsideEditable(first)) continue;
+      var m = TOKEN_START.exec(v);
+      // only a token that starts here and whose "~" is in a later node
+      if (!m || v.indexOf("~", m.index) !== -1) continue;
+      var parts = [v.slice(m.index)], nodes = [first], len = parts[0].length, end = -1;
+      for (var j = i + 1; j < all.length && j < i + 80 && len < 6000; j++) {
+        if (isInsideEditable(all[j])) break;
+        var nv = all[j].nodeValue || "";
+        nodes.push(all[j]);
+        var t = nv.indexOf("~");
+        if (t !== -1) { parts.push(nv.slice(0, t + 1)); end = t + 1; break; }
+        parts.push(nv);
+        len += nv.length;
+      }
+      if (end === -1) continue;
+      var joined = parts.join("");
+      if (!HyCrypto.hasToken(joined)) continue;
+      var segs = await HyCrypto.revealSegments(joined, circlesByKid);
+      var seg = segs.filter(function (s) { return s.token; })[0];
+      if (!seg) continue;
+      if (seg.plain === null) { stats.locked++; continue; }
+      var last = nodes[nodes.length - 1];
+      if (!first.isConnected || !last.isConnected) continue;
+      var range = document.createRange();
+      range.setStart(first, m.index);
+      range.setEnd(last, end);
+      range.deleteContents();
+      range.insertNode(makeHost(seg.plain, seg.token));
+      stats.opened++;
+    }
+  }
+
   /** Reveal now, and keep revealing what the page adds, until it's closed. */
   async function reveal(circlesByKid) {
     revealCircles = circlesByKid;
     var stats = { opened: 0, locked: 0 };
     await revealIn(document.body, circlesByKid, stats);
+    await revealSpanning(document.body, circlesByKid, stats);
     if (!observer) {
       observer = new MutationObserver(function (muts) {
         muts.forEach(function (m) {
           m.addedNodes.forEach(function (node) {
             var s = { opened: 0, locked: 0 };
             if (node.nodeType === 3) {
-              if (!isInsideEditable(node)) revealNode(node, revealCircles, s).then(paintBadge);
+              if (!isInsideEditable(node)) {
+                revealNode(node, revealCircles, s)
+                  .then(function () { return node.parentNode ? revealSpanning(node.parentNode, revealCircles, s) : null; })
+                  .then(paintBadge);
+              }
             } else if (node.nodeType === 1 && !node.hasAttribute("data-hyphae") && !node.hasAttribute("data-hyphae-ui")) {
-              revealIn(node, revealCircles, s).then(paintBadge);
+              revealIn(node, revealCircles, s)
+                .then(function () { return revealSpanning(node, revealCircles, s); })
+                .then(paintBadge);
             }
           });
           if (m.type === "characterData" && m.target.nodeType === 3 && !isInsideEditable(m.target)) {
@@ -261,8 +432,12 @@
       });
       observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     }
-    if (stats.opened || records.length) showBadge();
-    return { ok: true, opened: stats.opened, locked: stats.locked, lens: lens };
+    if (stats.opened || records.length) {
+      // Sealed text opened here, so this page is a protected one: turn the
+      // secure look on, unless the person already chose either way.
+      if (!userChose && !secure) setSecure("on"); else showBadge();
+    }
+    return { ok: true, opened: stats.opened, locked: stats.locked, lens: lens, secure: secure };
   }
 
   // ---- lens -----------------------------------------------------------------
@@ -276,6 +451,67 @@
     return { ok: true, lens: lens, count: records.length };
   }
 
+  // ---- secure mode ----------------------------------------------------------
+  // One switch. ON: you see the message, new text is sealed, and the whole page
+  // carries a calm "this is protected" look. OFF: the page exactly as the site
+  // delivered it, with none of our styling. The look is deliberately quiet — a
+  // thin frame, a barely-there tint, green carets, selections and focus rings —
+  // and it never captures a click (pointer-events:none, closed shadow root).
+
+  var FIELD_CSS =
+    "html{accent-color:#059669}" +
+    "::selection{background:rgba(16,185,129,.28)}" +
+    "textarea,input[type=text],input[type=email],input[type=search],input:not([type]),[contenteditable=\"true\"],[contenteditable=\"\"]{caret-color:#059669}" +
+    "textarea:focus,input[type=text]:focus,input[type=email]:focus,input[type=search]:focus,input:not([type]):focus," +
+    "[contenteditable=\"true\"]:focus,[contenteditable=\"\"]:focus{" +
+    "outline:2px solid rgba(16,185,129,.7)!important;outline-offset:1px!important}";
+
+  function applyFieldStyle(on) {
+    try {
+      if (on) {
+        if (!fieldSheet) { fieldSheet = new CSSStyleSheet(); fieldSheet.replaceSync(FIELD_CSS); }
+        if (document.adoptedStyleSheets.indexOf(fieldSheet) === -1) {
+          document.adoptedStyleSheets = document.adoptedStyleSheets.concat([fieldSheet]);
+        }
+      } else if (fieldSheet) {
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(function (s) { return s !== fieldSheet; });
+      }
+    } catch (e) { /* a page that forbids it: the frame and badge still show the state */ }
+  }
+
+  function showFrame(on) {
+    if (!on) { if (frame) { frame.host.remove(); frame = null; } return; }
+    if (frame && frame.host.isConnected) return;
+    var host = document.createElement("div");
+    host.setAttribute("data-hyphae-ui", "1");
+    host.style.cssText = "all:initial;position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483646;pointer-events:none;";
+    var shadow = host.attachShadow({ mode: "closed" });
+    var style = document.createElement("style");
+    style.textContent =
+      ".f{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;background:rgba(16,185,129,.022);" +
+      "box-shadow:inset 0 0 0 2px rgba(16,185,129,.5),inset 0 0 70px rgba(16,185,129,.08);animation:in .5s ease-out}" +
+      "@keyframes in{from{opacity:0}to{opacity:1}}" +
+      "@media (prefers-reduced-motion:reduce){.f{animation:none}}";
+    var f = document.createElement("div"); f.className = "f";
+    shadow.appendChild(style); shadow.appendChild(f);
+    (document.body || document.documentElement).appendChild(host);
+    frame = { host: host };
+  }
+
+  /** true / "on", false / "off", "toggle", or "state" (read only). */
+  function setSecure(mode) {
+    if (mode !== "state") {
+      secure = mode === "toggle" ? !secure : (mode === true || mode === "on");
+      showFrame(secure);
+      applyFieldStyle(secure);
+      showBadge();
+      setLens(secure ? "plain" : "site"); // also repaints the badge
+      announce();
+    }
+    records = records.filter(function (r) { return r.host.isConnected; });
+    return { ok: true, secure: secure, lens: lens, count: records.length };
+  }
+
   // ---- every-site mode ------------------------------------------------------
 
   /** How many text nodes on this page hold something that looks like a sealed token. No keys needed. */
@@ -285,7 +521,10 @@
     while ((n = walker.nextNode()) && seen < 20000) {
       seen++;
       var t = n.nodeValue;
-      if (t && t.indexOf("~") !== -1 && !isInsideEditable(n) && HyCrypto.hasToken(t)) found++;
+      if (!t || isInsideEditable(n)) continue;
+      if (t.indexOf("~") !== -1 && HyCrypto.hasToken(t)) found++;
+      // a token whose "~" sits in a later node (Gmail: one line per block)
+      else if (/h\s*y\s*1\s*\.[A-Za-z0-9_-]{11}\./.test(t)) found++;
     }
     return found;
   }
@@ -320,7 +559,14 @@
     }
   }
 
-  window.__hyphae = { sealFocused: sealFocused, reveal: reveal, setLens: setLens, detect: detect, autoStart: autoStart };
+  // Shared with the site adapters (gmail.js): the same encoder the reader decodes.
+  var rich = { encode: richEncode, render: richRender, prefix: RICH_PREFIX };
+
+  window.__hyphae = {
+    rich: rich,
+    sealFocused: sealFocused, reveal: reveal, setLens: setLens, detect: detect, autoStart: autoStart,
+    setSecure: function (mode) { if (mode !== "state") userChose = true; return setSecure(mode); },
+  };
 
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (msg, _sender, send) {
@@ -335,6 +581,11 @@
       }
       if (msg.hyphae === "lens") {
         send(setLens(msg.mode || "toggle"));
+        return;
+      }
+      if (msg.hyphae === "secure") {
+        if (msg.mode !== "state") userChose = true;
+        send(setSecure(msg.mode || "toggle"));
         return;
       }
     });
