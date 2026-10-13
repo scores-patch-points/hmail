@@ -1,5 +1,11 @@
-// Keyboard shortcuts. The popup does the same through its buttons.
-// A command counts as a user gesture, so activeTab grants this one tab only.
+// Hyphae worker: keyboard shortcuts, circles arriving from the hub, and the
+// activity ledger. Shortcuts count as a user gesture, so activeTab grants one tab.
+importScripts("crypto.js", "ledger-core.js");
+
+var storage = {
+  get: async function (k) { return (await chrome.storage.local.get(k))[k]; },
+  set: function (k, v) { var o = {}; o[k] = v; return chrome.storage.local.set(o); },
+};
 
 async function circlesByKid() {
   var data = await chrome.storage.local.get(["circles", "active"]);
@@ -16,6 +22,10 @@ async function badge(tabId, text, color) {
   setTimeout(function () { chrome.action.setBadgeText({ tabId: tabId, text: "" }); }, 2500);
 }
 
+async function note(kind, data) {
+  try { await HyLedger.record(storage, kind, data, Date.now()); } catch (e) { /* the ledger never blocks the action */ }
+}
+
 chrome.commands.onCommand.addListener(async function (command, tab) {
   if (!tab || tab.id == null) return;
   var state = await circlesByKid();
@@ -26,9 +36,11 @@ chrome.commands.onCommand.addListener(async function (command, tab) {
       if (!circle) return badge(tab.id, "?", "#b45309");
       var r = await chrome.tabs.sendMessage(tab.id, { hyphae: "seal", circle: circle });
       badge(tab.id, r && r.ok ? "✓" : "!", r && r.ok ? "#15803d" : "#b91c1c");
+      if (r && r.ok) await note("seal", { url: tab.url, circleKid: circle.kid });
     } else if (command === "reveal-page") {
       var rr = await chrome.tabs.sendMessage(tab.id, { hyphae: "reveal", circles: state.circles });
       badge(tab.id, rr && rr.ok ? String(rr.opened) : "!", rr && rr.ok ? "#15803d" : "#b91c1c");
+      if (rr && rr.ok) await note("reveal", { url: tab.url, opened: rr.opened, locked: rr.locked });
     }
   } catch (e) {
     // chrome:// pages, the Web Store and PDFs can't be scripted.
@@ -36,16 +48,38 @@ chrome.commands.onCommand.addListener(async function (command, tab) {
   }
 });
 
-// Circles arriving from the hub over Matrix, via bridge.js.
-// Only the hub origin may add circles; an existing circle's key is never
-// replaced (a hostile page can't swap a key you already trust), and keys are
-// never sent back out of the extension.
+// Visits. This only does anything when the user chose a visits mode AND
+// granted the optional "tabs" permission; without it, tab.url is not given.
+var lastVisit = {};
+chrome.tabs.onUpdated.addListener(function (tabId, info, tab) {
+  if (info.status !== "complete" || !tab || !tab.url) return;
+  var now = Date.now();
+  if (lastVisit[tabId] && lastVisit[tabId].url === tab.url && now - lastVisit[tabId].t < 3000) return;
+  lastVisit[tabId] = { url: tab.url, t: now };
+  note("visit", { url: tab.url, title: tab.title });
+});
+chrome.tabs.onRemoved.addListener(function (tabId) { delete lastVisit[tabId]; });
+
+// Messages.
+//  - merge-circles: from bridge.js on the hub origin only. An existing key is
+//    never replaced, and keys are never sent back out.
+//  - record: from our own popup after a seal/reveal.
 var HUB_ORIGIN = /^https:\/\/mail\.hyphae\.social\//;
 var KID_RE = /^[A-Za-z0-9_-]{11}$/;
 var KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 
 chrome.runtime.onMessage.addListener(function (msg, sender, send) {
-  if (!msg || msg.hyphae !== "merge-circles") return;
+  if (!msg) return;
+
+  if (msg.hyphae === "record") {
+    if (sender.id !== chrome.runtime.id || sender.tab) return; // popup only
+    var kind = msg.kind === "seal" || msg.kind === "reveal" ? msg.kind : null;
+    if (!kind) return;
+    note(kind, msg.data || {}).then(function () { send({ ok: true }); });
+    return true;
+  }
+
+  if (msg.hyphae !== "merge-circles") return;
   if (!sender || !sender.tab || !HUB_ORIGIN.test(sender.url || "")) {
     send({ added: 0, total: 0 });
     return;

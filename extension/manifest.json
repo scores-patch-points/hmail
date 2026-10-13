@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Hyphae — seal anything you write",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Encrypt text in any field on any site, and read what your circle sealed. Keys stay on your device and travel to your circle over Matrix. The site never sees plaintext and you need no account with it.",
   "permissions": ["storage", "activeTab", "scripting"],
+  "optional_permissions": ["tabs"],
   "action": {
     "default_title": "Hyphae",
     "default_popup": "popup.html"
