@@ -1,6 +1,9 @@
 {
   "name": "hmail",
   "private": true,
+  "bin": {
+    "hyphae": "bin/hyphae.mjs"
+  },
   "version": "0.0.1",
   "description": "An email-shaped Matrix client. Phase 0: scaffold + mock data.",
   "type": "module",
@@ -11,7 +14,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "hyphae": "node bin/hyphae.mjs",
+    "demo": "node bin/hyphae.mjs demo",
+    "test:all": "node bin/hyphae.mjs test"
   },
   "dependencies": {
     "@hyphae/people": "*",

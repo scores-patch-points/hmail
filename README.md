@@ -1,4 +1,58 @@
-# hmail
+# hyphae
+
+Seal what you write, on any site. A browser extension turns text, Gmail messages and
+Drive uploads into ciphertext on your device, so the site only ever stores sealed
+bytes; people you have connected with open it with the extension. Keys never travel
+over the channel that carries the ciphertext.
+
+- **Gmail**: a HYPHAE switch in the compose title bar; subject, body and recipients
+  are hyphae's own fields while it is on. Recipients are suggested from a local
+  directory (what you type never reaches Google's autocomplete). To someone not yet
+  connected, hyphae drafts a plain invitation and shows a one-time code to give them
+  by another channel; the message goes out sealed to just them once they join.
+- **Drive**: a HYPHAE button; files you pick or drop are sealed before Drive receives
+  them. The drive code can also seal, verify and undo a whole Drive.
+- **Contacts**: people connected by invitation or Matrix, kept only in hyphae.
+
+## Install the extension
+
+```
+node bin/hyphae.mjs extension          # prints the steps
+node bin/hyphae.mjs extension --zip    # or a zip to hand to someone
+```
+
+Chrome, Brave or Edge: `chrome://extensions` → Developer mode → **Load unpacked** →
+the `extension/` folder. Then click the toolbar icon once and create a circle.
+
+## Launch from a terminal
+
+```
+npm run hyphae -- demo flow      # the invite flow, two stand-in Gmail windows
+npm run hyphae -- demo drive     # sealing a stand-in Google Drive
+npm run hyphae -- app --dev      # the web app (or: npm run build, then `app`)
+npm run hyphae -- test           # every test suite that can run here
+npm run hyphae -- doctor         # check the extension files are all present
+```
+
+or `npm link` once and run `hyphae demo flow` anywhere. Node 20+, no extra
+dependencies for the launcher. The Gmail adapter flow test needs `jsdom`
+(`npm i -D jsdom`, or set `JSDOM_DIR`).
+
+## Layout
+
+| Path | What |
+|---|---|
+| `extension/` | the extension: `gmail.js`, `drive-page.js`, `content.js`, `background.js`, `crypto.js` |
+| `extension/invite/` | invitation, pairing and sealed envelopes; `VERDICT.md` says what is proven and what is not |
+| `extension/drive/` | seal format, Drive client, sweep, tests (`drive/test`) |
+| `extension/contacts/` | directory, Google contacts import, contacts sheet |
+| `extension/demo/` | `flow.html`, `drive.html` and the stand-in Drive |
+| `src/` | the web app (Matrix sign-in, circles hub) |
+| `bin/hyphae.mjs` | the launcher |
+
+---
+
+# hmail (the hosted Gmail app)
 
 Send private email through your own Gmail. The app's **Connect Google** flow is
 a real OAuth (send-only token, held only in your browser). Mail is encrypted in
