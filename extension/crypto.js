@@ -1,5 +1,5 @@
 /*
- * Hyphae sealing — the whole format and cipher in one dependency-free file.
+ * hyphae sealing — the whole format and cipher in one dependency-free file.
  *
  * A sealed token is plain ASCII, so it survives any app that stores text:
  *
@@ -7,8 +7,9 @@
  *
  * AES-256-GCM under the circle's key, with the circle id bound in as
  * additional data (a token can't be re-labelled as another circle's). The
- * trailing "~" lets a reader recover a token a mail client or editor has
- * line-wrapped: whitespace inside the ciphertext is ignored.
+ * trailing "~" ends the token, and whitespace ANYWHERE inside it is ignored,
+ * so a token a mail client or editor has line-wrapped — even inside the
+ * header — still opens.
  *
  * Loaded as a classic script in the page (content.js), the popup and the
  * worker (global HyCrypto), and with require() in Node for tests.
@@ -44,8 +45,24 @@
     return b;
   }
 
-  // kid 8 bytes -> 11 chars, iv 12 bytes -> 16 chars, ciphertext >= 16-byte tag
-  var TOKEN_RE = /hy1\.([A-Za-z0-9_-]{11})\.([A-Za-z0-9_-]{16})\.([A-Za-z0-9_\s-]{22,}?)~/g;
+  // A candidate: "hy1" (whitespace allowed anywhere), ".", then base64url + "." + whitespace
+  // up to the first "~". The shape (11 . 16 . >=22 chars) is checked in scan().
+  var TOKEN_RE = /h\s*y\s*1\s*\.([A-Za-z0-9_.\s-]{34,}?)~/g;
+
+  /** Find every well-formed token in `text`: [{ i, len, kid, iv, ct }]. */
+  function scan(text) {
+    var re = new RegExp(TOKEN_RE.source, "g");
+    var out = [], m;
+    while ((m = re.exec(text)) !== null) {
+      var parts = m[1].replace(/\s+/g, "").split(".");
+      if (parts.length !== 3 || parts[0].length !== 11 || parts[1].length !== 16 || parts[2].length < 22) {
+        re.lastIndex = m.index + 1; // not a token; keep looking after this "h"
+        continue;
+      }
+      out.push({ i: m.index, len: m[0].length, kid: parts[0], iv: parts[1], ct: parts[2] });
+    }
+    return out;
+  }
 
   function newCircle(name) {
     return {
@@ -79,7 +96,7 @@
       var pt = await webcrypto.subtle.decrypt(
         { name: "AES-GCM", iv: b64uDecode(ivText), additionalData: b64uDecode(kid) },
         key,
-        b64uDecode(ctText.replace(/\s+/g, ""))
+        b64uDecode(ctText)
       );
       return dec.decode(pt);
     } catch (e) {
@@ -89,12 +106,10 @@
 
   /** Replace every sealed token in `text` we can open; leave the rest as is. */
   async function revealText(text, circlesByKid) {
-    var re = new RegExp(TOKEN_RE.source, "g");
-    var out = "", last = 0, m, opened = 0, locked = 0;
-    var matches = [];
-    while ((m = re.exec(text)) !== null) matches.push({ i: m.index, len: m[0].length, kid: m[1], iv: m[2], ct: m[3] });
-    for (var j = 0; j < matches.length; j++) {
-      var t = matches[j];
+    var found = scan(text);
+    var out = "", last = 0, opened = 0, locked = 0;
+    for (var j = 0; j < found.length; j++) {
+      var t = found[j];
       var pt = await openToken(t.kid, t.iv, t.ct, circlesByKid);
       out += text.slice(last, t.i);
       if (pt === null) { out += text.slice(t.i, t.i + t.len); locked++; }
@@ -105,8 +120,28 @@
     return { text: out, opened: opened, locked: locked };
   }
 
+  /**
+   * Split `text` into runs: plain text, and sealed tokens (opened when we hold
+   * the key). The page layer uses this to put each opened token in its own
+   * closed shadow root, so the page's scripts never see the plaintext.
+   * Each run is { text } or { token, plain } (plain is null when locked).
+   */
+  async function revealSegments(text, circlesByKid) {
+    var found = scan(text);
+    var segs = [], last = 0;
+    for (var j = 0; j < found.length; j++) {
+      var t = found[j];
+      if (t.i > last) segs.push({ text: text.slice(last, t.i) });
+      var plain = await openToken(t.kid, t.iv, t.ct, circlesByKid);
+      segs.push({ token: text.slice(t.i, t.i + t.len), plain: plain });
+      last = t.i + t.len;
+    }
+    if (last < text.length) segs.push({ text: text.slice(last) });
+    return segs;
+  }
+
   function hasToken(text) {
-    return new RegExp(TOKEN_RE.source).test(text);
+    return scan(text).length > 0;
   }
 
   /** Portable form of a circle, for handing a key to someone out of band. */
@@ -120,7 +155,7 @@
   }
 
   return {
-    newCircle: newCircle, seal: seal, revealText: revealText, hasToken: hasToken,
-    shareString: shareString, parseShare: parseShare, TOKEN_RE: TOKEN_RE,
+    newCircle: newCircle, seal: seal, revealText: revealText, revealSegments: revealSegments,
+    hasToken: hasToken, shareString: shareString, parseShare: parseShare, TOKEN_RE: TOKEN_RE,
   };
 });

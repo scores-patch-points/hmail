@@ -3,14 +3,14 @@
  * this is where circle keys are sent and received:
  *
  *   - to give someone a circle: an end-to-end-encrypted DM carrying one custom
- *     event (CIRCLE_EVENT), the same channel mail keys already use;
+ *     event (CIRCLE_EVENT);
  *   - to receive: read that event type out of the DM rooms;
  *   - to hand them to the extension: window.postMessage to the bridge.
  *
  * The homeserver sees who messaged whom and when. It never sees a key.
  */
+import { Preset } from "matrix-js-sdk";
 import { getClient } from "@/lib/matrix";
-import { ensureDmRoom } from "@/lib/mail-keys";
 import {
   CIRCLE_EVENT,
   circleEventContent,
@@ -33,6 +33,30 @@ export function loadCircles(): Record<string, Circle> {
 
 export function saveCircles(circles: Record<string, Circle>): void {
   localStorage.setItem(STORE_KEY, JSON.stringify(circles));
+}
+
+/** Find the joined DM with `mxid`, or create an encrypted one. */
+export async function ensureDmRoom(mxid: string): Promise<string> {
+  const client = getClient();
+  if (!client) throw new Error("Not signed in.");
+  const existing = client
+    .getRooms()
+    .find((r) => r.getMyMembership() === "join" && r.guessDMUserId() === mxid);
+  if (existing) return existing.roomId;
+  const created = await client.createRoom({
+    name: mxid,
+    invite: [mxid],
+    is_direct: true,
+    preset: Preset.PrivateChat,
+    initial_state: [
+      {
+        type: "m.room.encryption",
+        state_key: "",
+        content: { algorithm: "m.megolm.v1.aes-sha2" },
+      },
+    ],
+  });
+  return created.room_id;
 }
 
 /** Send one circle's key to one member over an E2EE DM. */

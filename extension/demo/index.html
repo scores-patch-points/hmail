@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>hyphae — what the site sees vs what you see</title>
+    <style>
+      :root { --ink:#1c1917; --mut:#78716c; --line:#e7e5e4; --bg:#fafaf9; --card:#fff; --seal:#9a3b26; }
+      @media (prefers-color-scheme: dark) { :root { --ink:#f5f5f4; --mut:#a8a29e; --line:#3a3532; --bg:#171412; --card:#1f1b18; } }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+      header { padding:14px 22px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+      header b { font:600 20px/1 Georgia,serif; }
+      header span { color:var(--mut); font-size:13px; }
+      main { max-width:980px; margin:0 auto; padding:18px 22px 40px; display:grid; gap:18px; grid-template-columns: 1fr 1fr; }
+      @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+      section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+      h2 { font:600 12px/1.2 system-ui; letter-spacing:.07em; text-transform:uppercase; color:var(--mut); margin:0 0 10px; }
+      .bar { grid-column:1/-1; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+      button { font:inherit; padding:7px 12px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+      button.primary { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+      .hint { color:var(--mut); font-size:13px; }
+      .mail { border-top:1px solid var(--line); padding:10px 0; }
+      .mail:first-of-type { border-top:0; padding-top:0; }
+      .from { font-weight:600; } .subj { color:var(--mut); }
+      .body { margin-top:4px; overflow-wrap:anywhere; }
+      textarea { width:100%; min-height:84px; font:inherit; padding:8px; border-radius:7px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
+      pre { margin:8px 0 0; padding:9px 10px; background:var(--bg); border:1px solid var(--line); border-radius:7px; white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.4 ui-monospace,Menlo,monospace; min-height:2.6em; }
+      .bad { color:#b45309; } .good { color:#15803d; }
+      .wide { grid-column:1/-1; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>hyphae</b>
+      <span>A mock webmail. The page below is "the site". Everything sealed here is opened by the real extension code.</span>
+    </header>
+
+    <main>
+      <div class="bar">
+        <button id="reveal" class="primary">1 · Reveal sealed messages</button>
+        <button id="lens">2 · Lens: flip what the site sees ⇄ what you see</button>
+        <span class="hint" id="lensNote">Right now the page shows exactly what the server delivered.</span>
+      </div>
+
+      <section>
+        <h2>Inbox (rendered by the site)</h2>
+        <div id="inbox"></div>
+      </section>
+
+      <section>
+        <h2>What the site's own scripts can read</h2>
+        <p class="hint">A script on the page runs <code>inbox.textContent</code>. This is everything the site (or anyone who can run JavaScript in the page) gets.</p>
+        <button id="probe">Run the site's script</button>
+        <pre id="probeOut">(not run yet)</pre>
+      </section>
+
+      <section>
+        <h2>Compose (a field on the site)</h2>
+        <textarea id="compose">Wire the deposit Monday. The account PIN is 4417.</textarea>
+        <div style="margin-top:8px"><button id="seal">3 · Seal this field</button></div>
+        <p class="hint">What the site's form would submit:</p>
+        <pre id="submitOut">(the field as typed)</pre>
+      </section>
+
+      <section class="wide">
+        <h2>Every-site mode (automatic)</h2>
+        <p class="hint">
+          With "work on every site" on, hyphae runs on each page you open but stays idle until the page
+          actually holds sealed text. Only then does it ask for keys. Try it:
+        </p>
+        <div class="bar" style="grid-column:auto">
+          <button id="autoStart">A · Start automatic mode on this page</button>
+          <button id="lateMail">B · The page loads a new sealed message</button>
+          <button id="plainMail">C · The page loads an ordinary message</button>
+        </div>
+        <pre id="autoOut">(automatic mode not started)</pre>
+      </section>
+
+      <section>
+        <h2>Why this matters</h2>
+        <p class="hint">
+          Without sealing, the site stores and can read what you wrote. Sealed, the site stores
+          <b>ciphertext</b>; only people holding the circle key see the message. The lens flips the page
+          between the two views so you can see the difference. Revealed text sits in a closed shadow
+          root, which the site's scripts can't read into.
+        </p>
+      </section>
+    </main>
+
+    <script src="../crypto.js"></script>
+    <script src="../content.js"></script>
+    <script>
+      (async function () {
+        var circle = HyCrypto.newCircle("demo circle");
+        var byKid = {}; byKid[circle.kid] = circle;
+        var seal = function (t) { return HyCrypto.seal(circle, t); };
+
+        var mails = [
+          { from: "Maya", subj: "Dinner Friday?",
+            body: await seal("Dinner Friday at 7 — the usual place. Bring the photos from Lisbon.") },
+          { from: "Dev", subj: "Heads up",
+            body: "Quick note: " + await seal("the staging password was rotated; ask me on Matrix, not email.") + " Otherwise see you at standup." },
+          { from: "Weekly digest", subj: "Nothing sealed here",
+            body: "Just an ordinary email. hyphae leaves it exactly as it is." },
+        ];
+        // ?plain starts the page with no sealed messages, to show that automatic
+        // mode asks for nothing until sealed text actually appears.
+        if (/[?&]plain\b/.test(location.search)) mails = mails.slice(2);
+        var inbox = document.getElementById("inbox");
+        mails.forEach(function (m, i) {
+          var d = document.createElement("div"); d.className = "mail";
+          d.innerHTML = '<span class="from"></span> <span class="subj"></span><div class="body" id="m' + i + '"></div>';
+          d.querySelector(".from").textContent = m.from;
+          d.querySelector(".subj").textContent = "— " + m.subj;
+          d.querySelector(".body").textContent = m.body;
+          inbox.appendChild(d);
+        });
+
+        var note = document.getElementById("lensNote");
+        document.getElementById("reveal").onclick = async function () {
+          var r = await window.__hyphae.reveal(byKid);
+          note.textContent = "Opened " + r.opened + " sealed message(s). Green = what you see.";
+        };
+        document.getElementById("lens").onclick = function () {
+          var r = window.__hyphae.setLens("toggle");
+          note.textContent = r.lens === "plain"
+            ? "Showing what YOU see (plaintext, green)."
+            : "Showing what the SITE sees (ciphertext, amber).";
+        };
+        document.getElementById("probe").onclick = function () {
+          var txt = inbox.textContent.replace(/\s+/g, " ").trim();
+          var leaked = /Lisbon|staging password/.test(txt);
+          var out = document.getElementById("probeOut");
+          out.className = leaked ? "bad" : "good";
+          out.textContent = txt + "\n\n→ " + (leaked
+            ? "plaintext IS readable by the page's scripts"
+            : "no plaintext readable by the page's scripts");
+        };
+        // Automatic mode: the same autoStart the extension's every-site script calls.
+        var keyAsks = 0, autoOn = false;
+        var autoOut = document.getElementById("autoOut");
+        function autoLog(extra) {
+          autoOut.textContent =
+            "automatic mode: " + (autoOn ? "ON" : "off") + "\n" +
+            "times the page layer asked for keys: " + keyAsks + "\n" +
+            "sealed items on page right now: " + window.__hyphae.detect() + "\n" + (extra || "");
+        }
+        document.getElementById("autoStart").onclick = function () {
+          if (autoOn) return;
+          autoOn = true;
+          window.__hyphae.autoStart(function () { keyAsks++; autoLog("(keys requested)"); return Promise.resolve(byKid); });
+          autoLog("watching. No keys fetched until sealed text shows up.");
+        };
+        var arrivals = 0;
+        document.getElementById("lateMail").onclick = async function () {
+          arrivals++;
+          var d = document.createElement("div"); d.className = "mail";
+          d.innerHTML = '<span class="from">Alex</span> <span class="subj">— arrived just now</span><div class="body"></div>';
+          d.querySelector(".body").textContent =
+            "Message #" + arrivals + ": " + await seal("New sealed message #" + arrivals + " — opened automatically.");
+          inbox.insertBefore(d, inbox.firstChild);
+          setTimeout(function () { autoLog("sealed message added by the page"); }, 900);
+        };
+        document.getElementById("plainMail").onclick = function () {
+          var d = document.createElement("div"); d.className = "mail";
+          d.innerHTML = '<span class="from">Newsletter</span> <span class="subj">— nothing sealed</span><div class="body">Totally ordinary text. No sealed content.</div>';
+          inbox.insertBefore(d, inbox.firstChild);
+          setTimeout(function () { autoLog("ordinary message added; no keys needed"); }, 900);
+        };
+
+        document.getElementById("seal").onclick = async function () {
+          var ta = document.getElementById("compose");
+          ta.focus();
+          var r = await window.__hyphae.sealFocused(circle);
+          var out = document.getElementById("submitOut");
+          // This panel shows the raw value the form would send. hyphae opens any
+          // token it finds on a page, so mark this display as "leave it alone".
+          out.setAttribute("data-hyphae", "ignore");
+          out.textContent = r.ok ? ta.value : "(" + r.reason + ")";
+          out.className = r.ok ? "good" : "bad";
+        };
+      })();
+    </script>
+  </body>
+</html>

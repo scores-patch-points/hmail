@@ -1,11 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { Check, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { changeSitePassword } from "@/lib/account";
-import { getGmailSession } from "@/lib/gmail-oauth";
-import { ConnectGoogle } from "@/components/connect-google";
 
 export function Settings({
   email,
@@ -16,7 +14,6 @@ export function Settings({
 }) {
   const [pwdOpen, setPwdOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const connected = getGmailSession() !== null;
 
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col px-6 py-6">
@@ -28,33 +25,16 @@ export function Settings({
       )}
 
       <div className="divide-y divide-border rounded-md border border-border/70">
-        {/* Connect Google */}
-        <div className="p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="font-medium">Connect Google</span>
-            {connected ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-selected/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-selected-foreground">
-                <Check className="h-3 w-3" /> connected (send-only)
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                not connected
-              </span>
-            )}
-          </div>
-          <ConnectGoogle onConnected={() => undefined} />
-        </div>
-
         {/* Account line */}
         <div className="flex items-center justify-between p-4">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">gmail</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">account</div>
             <div className="font-mono text-sm">{email}</div>
           </div>
-          <span className="text-[10px] text-muted-foreground">send-only token · in this browser</span>
+          <span className="text-[10px] text-muted-foreground">signed in on this device</span>
         </div>
 
-        {/* Site password */}
+        {/* Password */}
         <div className="flex items-center justify-between gap-4 p-4">
           <span className="font-medium">Your password</span>
           <Button type="button" size="sm" variant="outline" onClick={() => setPwdOpen(true)}>
@@ -122,9 +102,9 @@ function PasswordModal({
     <Modal open onClose={onClose} title="Change your password">
       <form onSubmit={submit} className="space-y-3 p-5">
         <p className="text-[11px] text-muted-foreground">
-          The site password is never stored — it derives the Matrix account that
+          The password is never stored — it derives the Matrix account that
           delivers keys for <span className="font-mono">{email}</span>. Changing
-          it rotates that account's password. Share the new one with the other admins.
+          it rotates that account's password.
         </p>
         <label className="block">
           <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Current</span>

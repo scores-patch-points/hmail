@@ -1,4 +1,4 @@
-# Hyphae — seal anything you write
+# hyphae — seal anything you write
 
 A browser extension that encrypts text in **any field on any site** and decrypts what
 your circle sealed, wherever it shows up. It is a layer, not an app: Gmail, a comment
@@ -11,7 +11,7 @@ tab you ask it on (`activeTab`), and never touches password fields.
 
 1. `brave://extensions` (or `chrome://extensions`) → **Developer mode** on.
 2. **Load unpacked** → choose this `extension/` folder.
-3. Hyphae icon → **Circles & keys** → create a circle.
+3. hyphae icon → **Circles & keys** → create a circle.
 4. Click into any text field → **Seal field** (`Alt+Shift+S`). Select part of the text first to
    seal only that part.
 5. On a page with sealed text → **Reveal page** (`Alt+Shift+R`).
@@ -46,7 +46,7 @@ Popup → **Activity ledger**. Three levels, each with its own key:
 | content | the detail behind a receipt (URL path, title) |
 | summaries | what the Fold made of it — written by the Fold, not by the extension |
 
-Modes: **seal-only** (default: only Hyphae's own seal/reveal actions) and **visits** (also the
+Modes: **seal-only** (default: only hyphae's own seal/reveal actions) and **visits** (also the
 pages you open; needs the optional `tabs` permission, asked for only when you choose it). Query
 strings and fragments are never kept. Every event is sealed to its level's key the moment it is
 captured, so the queue on this device is already ciphertext. There is a pause switch.

@@ -41,6 +41,10 @@ chrome.commands.onCommand.addListener(async function (command, tab) {
       var rr = await chrome.tabs.sendMessage(tab.id, { hyphae: "reveal", circles: state.circles });
       badge(tab.id, rr && rr.ok ? String(rr.opened) : "!", rr && rr.ok ? "#15803d" : "#b91c1c");
       if (rr && rr.ok) await note("reveal", { url: tab.url, opened: rr.opened, locked: rr.locked });
+    } else if (command === "toggle-lens") {
+      var lr = await chrome.tabs.sendMessage(tab.id, { hyphae: "lens", mode: "toggle" });
+      // "P" = you see plaintext, "S" = the site's view (ciphertext)
+      badge(tab.id, lr && lr.ok ? (lr.lens === "plain" ? "P" : "S") : "!", lr && lr.ok ? "#15803d" : "#b91c1c");
     }
   } catch (e) {
     // chrome:// pages, the Web Store and PDFs can't be scripted.
@@ -98,4 +102,75 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
     send({ added: added, total: Object.keys(circles).length });
   })();
   return true;
+});
+
+// ---- every-site mode -------------------------------------------------------
+// Off by default. When the user turns it on (popup) and grants the optional
+// all-sites permission, the page layer is registered for every page. It still
+// does nothing until a page holds sealed text, and only then is it handed keys.
+var AUTO_ID = "hyphae-auto";
+
+async function autoState() {
+  var d = await chrome.storage.local.get(["everySite", "offSites"]);
+  return { on: d.everySite === true, off: Array.isArray(d.offSites) ? d.offSites : [] };
+}
+
+async function registerAuto() {
+  var s = await autoState();
+  try { await chrome.scripting.unregisterContentScripts({ ids: [AUTO_ID] }); } catch (e) { /* not registered */ }
+  if (!s.on) return;
+  var has = await chrome.permissions.contains({ origins: ["<all_urls>"] });
+  if (!has) return;
+  var exclude = s.off.slice(0, 200).map(function (h) { return "*://" + h + "/*"; });
+  await chrome.scripting.registerContentScripts([{
+    id: AUTO_ID,
+    matches: ["<all_urls>"],
+    excludeMatches: exclude,
+    js: ["crypto.js", "content.js", "auto.js"],
+    runAt: "document_idle",
+    allFrames: false,
+    persistAcrossSessions: true,
+  }]);
+}
+
+chrome.runtime.onInstalled.addListener(function () { registerAuto(); });
+chrome.runtime.onStartup.addListener(function () { registerAuto(); });
+
+chrome.runtime.onMessage.addListener(function (msg, sender, send) {
+  if (!msg) return;
+
+  // Keys go only to our own content script, only for sites that aren't switched off.
+  if (msg.hyphae === "get-circles") {
+    if (sender.id !== chrome.runtime.id || !sender.tab || !sender.tab.url) { send({ circles: null }); return; }
+    (async function () {
+      var s = await autoState();
+      var host = "";
+      try { host = new URL(sender.tab.url).hostname.toLowerCase(); } catch (e) { /* ignore */ }
+      if (!s.on || !host || s.off.indexOf(host) !== -1) return send({ circles: null });
+      var st = await circlesByKid();
+      send({ circles: st.circles });
+    })();
+    return true;
+  }
+
+  // From our own popup only.
+  if (msg.hyphae === "auto-set" || msg.hyphae === "site-off") {
+    if (sender.id !== chrome.runtime.id || sender.tab) return;
+    (async function () {
+      var d = await chrome.storage.local.get(["offSites"]);
+      var off = Array.isArray(d.offSites) ? d.offSites : [];
+      if (msg.hyphae === "auto-set") {
+        await chrome.storage.local.set({ everySite: msg.on === true });
+      } else {
+        var h = String(msg.host || "").toLowerCase();
+        if (!h) return send({ ok: false });
+        off = off.filter(function (x) { return x !== h; });
+        if (msg.off === true) off.push(h);
+        await chrome.storage.local.set({ offSites: off });
+      }
+      await registerAuto();
+      send({ ok: true });
+    })();
+    return true;
+  }
 });

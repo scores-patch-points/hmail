@@ -1,21 +1,20 @@
 /**
- * gmail·sender account — under the hood, never shown.
+ * hyphae account — under the hood, never shown.
  *
- * The app is a skin on Gmail: its DATA (config, lists, send history) lives in
- * the browser, never on Matrix. Matrix is only the connection + encryption
- * layer: the operator's hyphae account (derived from email + site password)
- * is what delivers mail keys to recipients "outside of google."
+ * The hub signs in to a Matrix homeserver (hyphae.social by default, or the
+ * one the deployment points at). The account is derived from an email address
+ * and a password, so there is nothing to look up and nothing to recover from
+ * a server: the homeserver holds only ciphertext and the derived credentials.
+ * Circles, keys and (later) the activity ledger travel over that session.
  */
 import { changeAccountPassword, getClient, loginWithPassword, logout } from "@/lib/matrix";
 import { MATRIX_HOMESERVER } from "@/lib/config";
 import { deriveHyphaePassword, deriveUsername } from "@/lib/secrets";
-import { sha256Hex } from "@/lib/crypto";
 
-const LOCAL_CONFIG_KEY = "gmail-sender:config";
-const LISTS_KEY = "gmail-sender:lists";
+const LOCAL_CONFIG_KEY = "gmail-sender:config"; // key name kept so existing sign-ins keep working
 
 // ---------------------------------------------------------------------------
-// Matrix connection (the operator's account — encryption + key delivery)
+// Matrix connection
 // ---------------------------------------------------------------------------
 
 async function registerHyphaeAccount(
@@ -56,9 +55,8 @@ async function registerHyphaeAccount(
 }
 
 /**
- * The one unlock. Derives the operator's hyphae account from email + site
- * password, provisions it if needed, and logs in. The Matrix session is the
- * channel that encrypts and connects — the data itself stays in the browser.
+ * The one unlock. Derives the Matrix account from email + password,
+ * provisions it if needed, and logs in.
  */
 export async function signIn(
   email: string,
@@ -83,9 +81,8 @@ export function isMatrixConnected(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Local config — browser only. The only thing stored is the Gmail address
-// (public: it is the From line). The site password and OAuth token are never
-// persisted here.
+// Local config — browser only. The only thing stored is the email address the
+// account was derived from. The password is never persisted.
 // ---------------------------------------------------------------------------
 
 export interface ConfigRecord {
@@ -127,7 +124,7 @@ export function loadConfig(): { email: string } | null {
   }
 }
 
-/** Forget the local config so the app starts over at the Connect Google setup. */
+/** Forget the local config so the app starts over at setup. */
 export function resetLocalConfig(): void {
   try {
     localStorage.removeItem(LOCAL_CONFIG_KEY);
@@ -137,8 +134,8 @@ export function resetLocalConfig(): void {
 }
 
 /**
- * Change the shared site password. Since it is never stored, this changes the
- * derived Matrix password on the homeserver (the only place it exists).
+ * Change the password. Since it is never stored, this changes the derived
+ * Matrix password on the homeserver (the only place it exists).
  */
 export async function changeSitePassword(
   email: string,
@@ -149,41 +146,4 @@ export async function changeSitePassword(
   const oldMatrixPassword = await deriveHyphaePassword(email, oldPassword);
   const newMatrixPassword = await deriveHyphaePassword(email, newPassword);
   await changeAccountPassword(username, oldMatrixPassword, newMatrixPassword);
-}
-
-// ---------------------------------------------------------------------------
-// Lists — browser only. A recipient is an email plus an optional Matrix MXID
-// (their "outside of google" identity, where the decryption key is delivered).
-// ---------------------------------------------------------------------------
-
-export interface Recipient {
-  email: string;
-  name?: string;
-  mxid?: string;
-}
-
-export interface MailList {
-  id: string;
-  name: string;
-  members: Recipient[];
-}
-
-export async function getLists(): Promise<MailList[]> {
-  try {
-    const raw = localStorage.getItem(LISTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as { v?: number; lists?: MailList[] };
-    return Array.isArray(parsed.lists) ? parsed.lists : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function saveLists(lists: MailList[]): Promise<void> {
-  localStorage.setItem(LISTS_KEY, JSON.stringify({ v: 1, lists }));
-}
-
-export async function newListId(): Promise<string> {
-  const h = await sha256Hex(`${Date.now()}:${crypto.getRandomValues(new Uint32Array(1))[0]}`);
-  return h.slice(0, 16);
 }

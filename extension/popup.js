@@ -98,7 +98,7 @@
 
   $("doImport").addEventListener("click", async function () {
     var p = HyCrypto.parseShare($("import").value);
-    if (!p) return say("That isn't a Hyphae key.", "err");
+    if (!p) return say("That isn't a hyphae key.", "err");
     state.circles[p.kid] = { kid: p.kid, name: p.name || "circle", key: p.key };
     state.active = p.kid;
     $("import").value = "";
@@ -119,7 +119,7 @@
         tell("seal", { url: tab.url, circleKid: c.kid });
       } else { say((r && r.reason) || "Couldn't seal that.", "err"); }
     } catch (e) {
-      say("Hyphae can't run on this page.", "err");
+      say("hyphae can't run on this page.", "err");
     }
   });
 
@@ -134,8 +134,61 @@
       else if (r.locked) say(r.locked + " sealed item(s) here are for circles you haven't joined.", "err");
       else say("No sealed text on this page.", "");
     } catch (e) {
-      say("Hyphae can't run on this page.", "err");
+      say("hyphae can't run on this page.", "err");
     }
+  });
+
+  $("lens").addEventListener("click", async function () {
+    try {
+      var tab = await activeTab();
+      await inject(tab);
+      var r = await chrome.tabs.sendMessage(tab.id, { hyphae: "lens", mode: "toggle" });
+      if (!r || !r.ok) return say("Couldn't switch the lens.", "err");
+      if (!r.count) return say("Nothing revealed on this page yet — press Reveal first.", "");
+      say(r.lens === "plain"
+        ? "Showing what YOU see (plaintext)."
+        : "Showing what the SITE sees (ciphertext).", "ok");
+    } catch (e) {
+      say("hyphae can't run on this page.", "err");
+    }
+  });
+
+  // Every-site mode. The browser's permission prompt needs a click, so the
+  // request happens here; the worker does the registering.
+  async function hostOf(tab) {
+    try { return new URL(tab.url).hostname.toLowerCase(); } catch (e) { return ""; }
+  }
+  async function loadAuto() {
+    var d = await chrome.storage.local.get(["everySite", "offSites"]);
+    var has = false;
+    try { has = await chrome.permissions.contains({ origins: ["<all_urls>"] }); } catch (e) { /* ignore */ }
+    $("everySite").checked = d.everySite === true && has;
+    var tab = await activeTab();
+    var host = tab ? await hostOf(tab) : "";
+    var off = Array.isArray(d.offSites) && host && d.offSites.indexOf(host) !== -1;
+    $("siteOff").textContent = off ? "Turn back on for " + host : "Not on this site";
+    $("siteOff").disabled = !host;
+  }
+  $("everySite").addEventListener("change", async function () {
+    var want = $("everySite").checked;
+    if (want) {
+      var ok = false;
+      try { ok = await chrome.permissions.request({ origins: ["<all_urls>"] }); } catch (e) { ok = false; }
+      if (!ok) { $("everySite").checked = false; return say("Access to all sites wasn't granted.", "err"); }
+    }
+    await chrome.runtime.sendMessage({ hyphae: "auto-set", on: want });
+    if (!want) { try { await chrome.permissions.remove({ origins: ["<all_urls>"] }); } catch (e) { /* ignore */ } }
+    say(want ? "On: sealed text opens on any site as it loads." : "Off: hyphae only runs where you invoke it.", "ok");
+  });
+  $("siteOff").addEventListener("click", async function () {
+    var tab = await activeTab();
+    var host = tab ? await hostOf(tab) : "";
+    if (!host) return;
+    var d = await chrome.storage.local.get(["offSites"]);
+    var isOff = Array.isArray(d.offSites) && d.offSites.indexOf(host) !== -1;
+    await chrome.runtime.sendMessage({ hyphae: "site-off", host: host, off: !isOff });
+    await loadAuto();
+    say(isOff ? "Back on for " + host + "." : "hyphae will not run on " + host + ".", "ok");
   });
 
   // Activity ledger settings. Visit capture needs the optional "tabs"
@@ -163,4 +216,5 @@
   });
 
   load();
+  loadAuto();
 })();

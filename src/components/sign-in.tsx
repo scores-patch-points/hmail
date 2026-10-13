@@ -32,7 +32,7 @@ export function SignIn({ onDone, onSetup }: {
     setError(null);
     try {
       const clean = needsEmail ? email.trim() : getLocalEmail() ?? "";
-      if (!clean.includes("@")) throw new Error("Enter your Gmail address.");
+      if (!clean.includes("@")) throw new Error("Enter your email address.");
       await signIn(clean, sitePassword);
       const creds = loadConfig();
       if (!creds || creds.email !== clean) throw new Error("No stored config found for this account.");
@@ -51,21 +51,21 @@ export function SignIn({ onDone, onSetup }: {
         className="w-full max-w-sm rounded-md border border-border/60 bg-background/80 p-7 shadow-sm"
       >
         <div className="mb-1 flex items-center gap-2">
-          <span className="font-display text-2xl italic leading-none text-seal">H</span>
-          <span className="font-display text-2xl leading-none">yphae Mail</span>
+          <span className="font-display text-2xl italic leading-none text-seal">h</span>
+          <span className="font-display text-2xl leading-none">yphae</span>
         </div>
         <p className="mb-6 text-xs text-muted-foreground">
-          newsletters · one room is one list
+          seal anything you write
         </p>
 
         {needsEmail && (
           <label className="mb-3 block">
             <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Gmail address (first time on this device)
+              Email address (first time on this device)
             </span>
             <Input
               type="email"
-              placeholder="you@gmail.com"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
@@ -87,7 +87,7 @@ export function SignIn({ onDone, onSetup }: {
             placeholder="••••••••••"
           />
           <span className="mt-1 block text-[10px] text-muted-foreground">
-            shared by the admins — ask the owner for it
+            the password you chose when you made this account
           </span>
         </label>
 
@@ -106,12 +106,11 @@ export function SignIn({ onDone, onSetup }: {
           onClick={onSetup}
           className="mt-4 text-[11px] text-muted-foreground hover:underline"
         >
-          First time here? Set up Connect Google
+          First time here? Make an account
         </button>
 
         <p className="mt-6 text-[10px] leading-relaxed text-muted-foreground">
-          Your lists live on hyphae.social; mail goes out through Gmail with a
-          send-only token that stays in this tab — no third party, no app password.{" "}
+          Your account lives on the hyphae.social Matrix server; keys travel end-to-end encrypted.{" "}
           <a href={`${import.meta.env.BASE_URL}privacy/`} target="_blank" rel="noreferrer" className="underline">
             Privacy
           </a>{" "}

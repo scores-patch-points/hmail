@@ -123,7 +123,7 @@ export function CirclesView() {
       <h2 className="font-display text-xl">Circles</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         A circle is who can read what you seal. Matrix carries the key to each
-        person, encrypted; the Hyphae extension uses it on any site.
+        person, encrypted; the hyphae extension uses it on any site.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-surface/50 px-3 py-2 text-[11px] text-muted-foreground">

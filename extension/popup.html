@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hyphae</title>
+    <title>hyphae</title>
     <style>
       :root { color-scheme: light dark; }
       body { width: 320px; margin: 0; padding: 14px; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -25,7 +25,7 @@
     </style>
   </head>
   <body>
-    <h1>Hyphae</h1>
+    <h1>hyphae</h1>
     <p class="sub">Seal what you write, on any site.</p>
 
     <label for="circle">Circle</label>
@@ -35,7 +35,16 @@
       <button id="seal" class="primary" title="Alt+Shift+S">Seal field</button>
       <button id="reveal" title="Alt+Shift+R">Reveal page</button>
     </div>
+    <div class="row">
+      <button id="lens" title="Alt+Shift+E">Lens: what the site sees ⇄ what you see</button>
+    </div>
     <div id="status" role="status"></div>
+
+    <label class="inline" style="margin-top:12px">
+      <input id="everySite" type="checkbox" /> Work on every site automatically
+    </label>
+    <div class="note">Opens sealed text as pages load. Asks your browser for access to all sites, once. It only fetches keys on a page that actually holds sealed text.</div>
+    <div class="row"><button id="siteOff">Not on this site</button></div>
 
     <details id="activity">
       <summary>Activity ledger</summary>
