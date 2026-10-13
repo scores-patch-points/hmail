@@ -1,5 +1,5 @@
 {
-  "name": "hmail",
+  "name": "hyphae",
   "private": true,
   "bin": {
     "hyphae": "bin/hyphae.mjs"

@@ -30,4 +30,4 @@ jobs:
 
       - run: npm run build
         env:
-          VITE_BASE_PATH: /hmail/
+          VITE_BASE_PATH: /hyphae/

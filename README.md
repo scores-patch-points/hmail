@@ -52,7 +52,7 @@ dependencies for the launcher. The Gmail adapter flow test needs `jsdom`
 
 ---
 
-# hmail (the hosted Gmail app)
+# hyphae mail (the hosted Gmail app)
 
 Send private email through your own Gmail. The app's **Connect Google** flow is
 a real OAuth (send-only token, held only in your browser). Mail is encrypted in
