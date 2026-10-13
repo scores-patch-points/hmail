@@ -1,0 +1,1 @@
+{ "type": "commonjs", "private": true, "description": "hyphae drive tests: CommonJS files under the module-typed repo root. Run: node run-all.js" }

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hyphae drive</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #eef1f8; color: #202124; font: 14px/1.45 "Helvetica Neue", Arial, sans-serif; }
+  header { padding: 10px 18px; background: #1b1d28; color: #b1a6d4; display: flex; gap: 14px; align-items: baseline; }
+  header b { letter-spacing: .3em; text-transform: uppercase; font-weight: 300; font-size: 13px; }
+  header span { color: #8a8a9c; font-size: 12px; }
+  #cap { padding: 10px 18px; background: #fff; border-bottom: 1px solid #dadce0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #cap .t { flex: 1 1 100%; font-size: 15px; min-height: 22px; }
+  button { border: 1px solid #c9c2e6; background: #f6f4fc; color: #3c3763; border-radius: 16px; padding: 5px 14px; cursor: pointer; font: inherit; }
+  button.primary { background: #5a46a8; color: #fff; border-color: #5a46a8; }
+  button:disabled { opacity: .5; cursor: default; }
+  .cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 12px; padding: 12px 18px; }
+  @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+  .box { background: #fff; border: 1px solid #dadce0; border-radius: 10px; padding: 10px 12px; }
+  .box h4 { margin: 0 0 8px; font: 600 12px/1 system-ui; letter-spacing: .08em; text-transform: uppercase; color: #5f6368; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-weight: 600; color: #5f6368; border-bottom: 1px solid #e0e0e0; padding: 4px 6px; font-size: 11px; }
+  td { padding: 5px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  td.mono { font: 11px/1.3 ui-monospace, Menlo, monospace; word-break: break-all; color: #7c5a2a; }
+  tr.sealed td.name { color: #5a46a8; }
+  .tag { display: inline-block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 1px 6px; border-radius: 8px; background: #efecf8; color: #5a46a8; margin-right: 4px; }
+  .tag.warn { background: #fbf3e6; color: #6b4e1b; }
+  .you .row { padding: 6px 4px; border-bottom: 1px solid #f0f0f0; }
+  .you .row .nm { font-weight: 500; }
+  .you .row .sub { color: #5f6368; font-size: 12px; }
+  .you .lock { color: #5a46a8; }
+  #log { padding: 0 18px 20px; }
+  #log .box { font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  #viewer { margin-top: 10px; background: #f6f4fc; border: 1px solid #d9d3ef; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; font: 12.5px/1.45 ui-monospace, Menlo, monospace; display: none; }
+</style>
+</head>
+<body>
+<header><b>hyphae</b><span>drive &middot; the real drive code (seal, verify, sweep) against a stand-in Google Drive (not Google's)</span></header>
+<div id="cap">
+  <div class="t" id="t">Your Drive, as Google stores it, is on the left. What you see with hyphae is on the right.</div>
+  <button id="b_dry">1. Preview (dry run)</button>
+  <button id="b_seal" class="primary">2. Seal my Drive</button>
+  <button id="b_open">3. Open a sealed file</button>
+  <button id="b_add">4. New file arrives, fresh boot</button>
+  <button id="b_purge">5. Purge old plaintext</button>
+  <button id="b_unseal">Unseal one</button>
+</div>
+<div class="cols">
+  <div class="box"><h4>What Google stores</h4><table id="google"></table></div>
+  <div class="box you"><h4>What you see with hyphae</h4><div id="you"></div><div id="viewer"></div></div>
+</div>
+<div id="log"><div class="box" id="logbox">Ready.</div></div>
+
+<script src="../crypto.js"></script>
+<script src="../drive/hash.js"></script>
+<script src="../drive/seal.js"></script>
+<script src="../drive/client.js"></script>
+<script src="../drive/sweep.js"></script>
+<script src="drive-mock.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var dec = new TextDecoder();
+
+  var mock = HyMockDrive.create();
+  var circle = HyCrypto.newCircle("Drive");
+  var client = HyDriveClient.create({ token: "demo-token", fetch: mock.fetch, sleep: function () { return Promise.resolve(); }, qps: 10000 });
+  var engine = HyDriveSweep.create({ client: client, circle: circle, store: HyDriveSweep.memoryStorage(), accountKey: "demo" });
+
+  var med = mock.folder("Medical");
+  var FIDS = {};
+  FIDS.tax = mock.seed({ name: "Tax return 2025.pdf", mimeType: "application/pdf", bytes: "%PDF-1.4\nTax return 2025\nSSN 123-45-6789\nRefund: $4,212.00\n%%EOF" });
+  FIDS.photo = mock.seed({ name: "Family photo.jpg", mimeType: "image/jpeg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xdb].concat(Array.from({ length: 180 }, function (_, i) { return (i * 7) & 255; }))) });
+  FIDS.notes = mock.seed({ name: "Meeting notes.txt", mimeType: "text/plain", bytes: "Meeting notes\n- the diagnosis is not final\n- call the clinic on Monday\n" });
+  FIDS.lab = mock.seed({ name: "Lab results.pdf", mimeType: "application/pdf", bytes: "%PDF-1.4\nLab results\nPatient: A. Example\nA1c 6.1%\n%%EOF", parents: [med] });
+  FIDS.shared = mock.seed({ name: "Shared with team.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes: "PK\u0003\u0004team planning draft", shared: true });
+  FIDS.doc = mock.seed({ name: "Project plan (Google Doc)", mimeType: "application/vnd.google-apps.document" });
+
+  function log(s) { var b = $("logbox"); b.textContent = (b.textContent === "Ready." ? "" : b.textContent + "\n") + s; b.scrollTop = b.scrollHeight; }
+  function say(s) { $("t").textContent = s; }
+  function preview(u8, n) {
+    if (!u8) return "—";
+    var out = "";
+    for (var i = 0; i < Math.min(n, u8.length); i++) { var c = u8[i]; out += (c >= 32 && c < 127) ? String.fromCharCode(c) : "·"; }
+    return out;
+  }
+  function kind(f) {
+    if (f.mimeType === "application/vnd.google-apps.folder") return "folder";
+    if (/^application\/vnd\.google-apps\./.test(f.mimeType)) return "Google file";
+    return f.mimeType.split("/")[1] || f.mimeType;
+  }
+
+  function paintGoogle() {
+    var t = $("google"); t.textContent = "";
+    var head = document.createElement("tr");
+    ["Name", "Type", "Size", "Properties", "First bytes"].forEach(function (h) { var th = document.createElement("th"); th.textContent = h; head.appendChild(th); });
+    t.appendChild(head);
+    mock.dump().filter(function (f) { return !f.trashed; }).forEach(function (f) {
+      var tr = document.createElement("tr");
+      var sealed = f.properties && f.properties.hysealed === "1";
+      if (sealed) tr.className = "sealed";
+      var cells = [f.name, kind(f), f.size !== undefined ? f.size + " B" : "", Object.keys(f.properties || {}).map(function (k) { return k + "=" + String(f.properties[k]).slice(0, 14); }).join(" "), f.head ? preview(f.head, 30) : ""];
+      cells.forEach(function (c, i) {
+        var td = document.createElement("td");
+        if (i === 0) td.className = "name";
+        if (i === 4 || i === 3) td.className = "mono";
+        td.textContent = c;
+        if (i === 0 && f.revisions && f.revisions.length > 1) {
+          var tg = document.createElement("span"); tg.className = "tag warn"; tg.textContent = f.revisions.length + " revisions"; tg.title = "older plaintext still kept until purged";
+          td.appendChild(document.createElement("br")); td.appendChild(tg);
+        }
+        tr.appendChild(td);
+      });
+      t.appendChild(tr);
+    });
+  }
+
+  async function paintYou() {
+    var el = $("you"); el.textContent = "";
+    var rows = mock.dump().filter(function (f) { return !f.trashed && f.properties.hyindex !== "1"; });
+    for (var i = 0; i < rows.length; i++) {
+      var f = rows[i], d = document.createElement("div"); d.className = "row";
+      var nm = document.createElement("div"); nm.className = "nm";
+      var sub = document.createElement("div"); sub.className = "sub";
+      if (f.properties.hysealed === "1") {
+        try {
+          var r = await engine.readSealed(f.id);
+          nm.textContent = r.meta.name;
+          var lk = document.createElement("span"); lk.className = "lock"; lk.textContent = " · sealed";
+          nm.appendChild(lk);
+          sub.textContent = (r.meta.mime || "") + " · " + (r.meta.size || r.bytes.length) + " B";
+        } catch (e) { nm.textContent = f.name; sub.textContent = "sealed for a circle you don't hold"; }
+      } else {
+        nm.textContent = f.name;
+        sub.textContent = f.mimeType === "application/vnd.google-apps.folder" ? "folder (names aren't sealed)" : (/google-apps/.test(f.mimeType) ? "Google file: can't be sealed" : "plain on Drive");
+      }
+      d.appendChild(nm); d.appendChild(sub); el.appendChild(d);
+    }
+  }
+  async function repaint() { paintGoogle(); await paintYou(); }
+
+  function summarise(rep) {
+    var sk = Object.keys(rep.skipped || {}).map(function (k) { return k + " ×" + rep.skipped[k]; }).join(", ");
+    return "scanned " + rep.scanned + ", sealed " + rep.sealed + ", verified " + rep.verified + ", purged " + rep.purged +
+      (sk ? "; left alone: " + sk : "") + (rep.failed && rep.failed.length ? "; FAILED " + rep.failed.length : "");
+  }
+  async function busy(fn) {
+    var bs = document.querySelectorAll("#cap button"); bs.forEach(function (b) { b.disabled = true; });
+    try { await fn(); } finally { bs.forEach(function (b) { b.disabled = false; }); }
+  }
+
+  $("b_dry").onclick = function () { busy(async function () {
+    var rep = await engine.sweep({ dryRun: true });
+    say("Dry run: nothing is written. This is the plan.");
+    log("dry run: " + summarise(rep));
+    (rep.plan || []).forEach(function (p) { log("  would seal  " + p.name + "  →  " + (p.newName || "")); });
+  }); };
+  $("b_seal").onclick = function () { busy(async function () {
+    var rep = await engine.sweep({});
+    say("Sealed in place. Each file was read back and opened before anything was considered done. Folders, shared files and Google Docs were left alone.");
+    log("seal: " + summarise(rep));
+    await repaint();
+  }); };
+  $("b_open").onclick = function () { busy(async function () {
+    var v = $("viewer");
+    try {
+      var r = await engine.readSealed(FIDS.tax);
+      v.style.display = "block";
+      v.textContent = r.meta.name + "\n\n" + dec.decode(r.bytes);
+      say("Opened locally with the circle key. Google only ever had the sealed bytes.");
+      log("opened " + r.meta.name + " (" + r.bytes.length + " B) — matches the original");
+    } catch (e) { say("Couldn't open: " + e.message); log("open failed: " + e.message); }
+  }); };
+  $("b_add").onclick = function () { busy(async function () {
+    mock.seed({ name: "Passport scan.jpg", mimeType: "image/jpeg", bytes: "ÿØÿà passport scan, number X1234567" });
+    paintGoogle();
+    say("A new file landed in Drive in plain form. On the next start, hyphae seals only what isn't sealed yet.");
+    var rep = await engine.sweep({});
+    log("fresh boot: " + summarise(rep));
+    await repaint();
+  }); };
+  $("b_purge").onclick = function () { busy(async function () {
+    var res = await engine.purgeAll();
+    say("Older plaintext revisions deleted, each after re-checking that the sealed head opens. This can't be undone, and the key is now the only copy.");
+    log("purge: " + JSON.stringify(res && res.purged !== undefined ? { purged: res.purged } : (res || {})).slice(0, 160));
+    await repaint();
+  }); };
+  $("b_unseal").onclick = function () { busy(async function () {
+    var r = await engine.unsealOne(FIDS.notes);
+    say("Unsealed in place: plaintext restored under the same file id.");
+    log("unseal: " + JSON.stringify(r));
+    await repaint();
+  }); };
+
+  window.demo = { engine: engine, mock: mock, FIDS: FIDS, repaint: repaint, circle: circle };
+  repaint();
+})();
+</script>
+</body>
+</html>
