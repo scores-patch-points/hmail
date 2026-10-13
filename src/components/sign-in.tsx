@@ -51,8 +51,8 @@ export function SignIn({ onDone, onSetup }: {
         className="w-full max-w-sm rounded-md border border-border/60 bg-background/80 p-7 shadow-sm"
       >
         <div className="mb-1 flex items-center gap-2">
-          <span className="font-display text-2xl italic leading-none text-seal">h</span>
-          <span className="font-display text-2xl leading-none">mail</span>
+          <span className="font-display text-2xl italic leading-none text-seal">H</span>
+          <span className="font-display text-2xl leading-none">yphae Mail</span>
         </div>
         <p className="mb-6 text-xs text-muted-foreground">
           newsletters · one room is one list

@@ -20,8 +20,8 @@ export function Dashboard({ email, onSignOut }: {
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border bg-surface/50 px-6 py-3">
         <div className="flex items-center gap-2">
-          <span className="font-display text-2xl italic leading-none text-seal">h</span>
-          <span className="font-display text-2xl leading-none">mail</span>
+          <span className="font-display text-2xl italic leading-none text-seal">H</span>
+          <span className="font-display text-2xl leading-none">yphae Mail</span>
         </div>
         <nav className="flex items-center gap-4">
           <button

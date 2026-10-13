@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Privacy policy — hmail</title>
-    <meta name="description" content="What hmail does with your Google account data, what it stores, and where it goes." />
+    <title>Privacy policy — Hyphae Mail</title>
+    <meta name="description" content="What Hyphae Mail does with your Google account data, what it stores, and where it goes." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/site.css" />
   </head>
   <body>
     <header class="site">
       <div class="wrap">
-        <a class="brand" href="../"><img src="/favicon.svg" alt="" /><span>hmail</span></a>
+        <a class="brand" href="../"><img src="/favicon.svg" alt="" /><span>Hyphae Mail</span></a>
         <nav class="site" aria-label="Site">
           <a href="../privacy/">Privacy</a>
           <a href="../terms/">Terms</a>
@@ -26,7 +26,7 @@
 
       <h2>Who we are</h2>
       <p>
-        hmail is operated by hyphae ("we"). hmail is a web app that lets you send encrypted messages
+        Hyphae Mail is operated by hyphae ("we"). Hyphae Mail is a web app that lets you send encrypted messages
         through your own Gmail account. The Matrix homeserver it uses, <code>hyphae.social</code>,
         is run by the same operator. Contact:
         <a href="mailto:%VITE_SUPPORT_EMAIL%">%VITE_SUPPORT_EMAIL%</a>.
@@ -34,7 +34,7 @@
 
       <h2>The short version</h2>
       <ul>
-        <li>hmail asks Google for one permission: send email as you. It cannot read, list, search or delete your mail.</li>
+        <li>Hyphae Mail asks Google for one permission: send email as you. It cannot read, list, search or delete your mail.</li>
         <li>Your message is encrypted in your browser. Gmail, and Google, only ever receive scrambled text.</li>
         <li>Your Google access token stays in your browser tab. We have no server that receives it.</li>
         <li>We do not sell your data, show ads, or use Google data for anything except sending the messages you ask us to send.</li>
@@ -43,7 +43,7 @@
       <h2>Google user data we access</h2>
       <table>
         <thead>
-          <tr><th>Google permission</th><th>What hmail uses it for</th></tr>
+          <tr><th>Google permission</th><th>What Hyphae Mail uses it for</th></tr>
         </thead>
         <tbody>
           <tr>
@@ -54,23 +54,23 @@
             <td>Send email on your behalf (<code>gmail.send</code>)</td>
             <td>
               To deliver the encrypted messages you compose, from your own address, to the recipients
-              you choose. This is the only Gmail operation hmail performs.
+              you choose. This is the only Gmail operation Hyphae Mail performs.
             </td>
           </tr>
         </tbody>
       </table>
       <p>
-        hmail does <strong>not</strong> request access to read, list, search, modify or delete messages,
+        Hyphae Mail does <strong>not</strong> request access to read, list, search, modify or delete messages,
         labels, drafts, contacts, calendar, Drive files or any other Google data.
       </p>
 
       <h2>How your Google access token is handled</h2>
       <p>
         Google issues a short-lived access token to your browser when you click "Continue with
-        Google". hmail holds it in your browser tab's session storage and uses it only to call
+        Google". Hyphae Mail holds it in your browser tab's session storage and uses it only to call
         Google's own services: the Gmail API to send your message, and Google's token-info service to
-        read your account's email address. It is not sent to hmail or to any other party, it is not
-        written to disk, and it is discarded when you close the tab or it expires. hmail does not
+        read your account's email address. It is not sent to Hyphae Mail or to any other party, it is not
+        written to disk, and it is discarded when you close the tab or it expires. Hyphae Mail does not
         request a long-lived refresh token.
       </p>
 
@@ -124,7 +124,7 @@
         <li><strong>Session storage:</strong> the Google access token, until the tab closes.</li>
       </ul>
       <p>
-        Your lists are kept in your browser; we do not keep a copy. Signing out of hmail removes the
+        Your lists are kept in your browser; we do not keep a copy. Signing out of Hyphae Mail removes the
         Matrix session and encryption databases from your browser. Clearing the site's data in your
         browser removes everything else.
       </p>
@@ -132,7 +132,7 @@
       <h2>Sharing, sale and advertising</h2>
       <p>
         We do not sell personal data, use it for advertising, or give it to data brokers. No person
-        at hmail reads your messages or your Google data, and we do not use it to train any AI or
+        at Hyphae Mail reads your messages or your Google data, and we do not use it to train any AI or
         machine-learning model. The only parties that receive data are Google and the Matrix
         homeserver, as described above, to carry out the sends you request, and anyone we are
         legally required to disclose information to.
@@ -140,7 +140,7 @@
 
       <h2>Google API Services User Data Policy</h2>
       <p>
-        hmail's use and transfer of information received from Google APIs adheres to the
+        Hyphae Mail's use and transfer of information received from Google APIs adheres to the
         <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
         including the Limited Use requirements. We use Google user data only to provide and improve
         the user-facing sending feature you asked for, we do not transfer it to others except as
@@ -149,7 +149,7 @@
 
       <h2>Retention and deletion</h2>
       <ul>
-        <li><strong>Google access:</strong> you can revoke hmail's access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+        <li><strong>Google access:</strong> you can revoke Hyphae Mail's access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
         <li><strong>Browser data:</strong> stays until you sign out or clear site data.</li>
         <li><strong>Matrix account:</strong> the account and its encrypted key messages remain on the homeserver until the account is deleted. To have your account deleted, email us at the address above.</li>
         <li><strong>Sent email:</strong> messages already delivered sit in Gmail (yours and your recipients') as ciphertext, under those users' own control.</li>
@@ -159,12 +159,12 @@
       <p>
         Each message is encrypted with AES-256-GCM under a fresh key; keys are delivered with
         Matrix's Megolm end-to-end encryption. No system is perfectly secure. The password for your
-        hmail account is derived from your Gmail address and your site password, so choose a long,
+        Hyphae Mail account is derived from your Gmail address and your site password, so choose a long,
         unique site password, and share it only with people you trust to send as you.
       </p>
 
       <h2>Children</h2>
-      <p>hmail is not directed at children under 13, and we do not knowingly collect their data.</p>
+      <p>Hyphae Mail is not directed at children under 13, and we do not knowingly collect their data.</p>
 
       <h2>Changes</h2>
       <p>

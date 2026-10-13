@@ -46,8 +46,8 @@ export function Setup({ onDone }: { onDone: (creds: { email: string }) => void }
         className="w-full max-w-md rounded-md border border-border/60 bg-background/80 p-7 shadow-sm"
       >
         <div className="mb-5 flex items-center gap-2">
-          <span className="font-display text-2xl italic leading-none text-seal">h</span>
-          <span className="font-display text-2xl leading-none">mail</span>
+          <span className="font-display text-2xl italic leading-none text-seal">H</span>
+          <span className="font-display text-2xl leading-none">yphae Mail</span>
         </div>
         <p className="mb-5 text-xs text-muted-foreground">
           Make your account — two fields. You'll connect Google next, inside the

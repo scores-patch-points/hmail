@@ -150,7 +150,7 @@ export function ConnectGoogle({ onConnected }: { onConnected: (email: string) =>
   return (
     <div className="rounded-md border border-border/70 p-4">
       <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
-        hmail asks Google for one permission: to <span className="font-medium text-foreground">send email as you</span>.
+        Hyphae Mail asks Google for one permission: to <span className="font-medium text-foreground">send email as you</span>.
         It cannot read, list or delete anything in your mailbox, and the token stays in this tab.{" "}
         <a
           href={`${import.meta.env.BASE_URL}privacy/`}
