@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>hyphae — update</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #1b1d28; color: #b1a6d4; font: 300 14px/1.5 "Helvetica Neue", system-ui, sans-serif; }
+      main { max-width: 560px; margin: 40px auto; padding: 0 20px; }
+      .word { font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: #b1a6d4; }
+      h1 { font-weight: 400; font-size: 20px; margin: 10px 0 4px; color: #cfc8ec; }
+      p.sub { margin: 0 0 22px; color: #8a8a9c; font-size: 13px; }
+      .card { border: 1px solid #313140; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: #20222f; }
+      .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #8a8a9c; }
+      .v { font-size: 15px; color: #cfc8ec; margin-top: 2px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      button { font: inherit; font-size: 12px; border: 1px solid #938bb2; background: transparent; color: #b1a6d4; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+      button:hover { background: rgba(147,139,178,.16); }
+      button.primary { background: #938bb2; color: #1b1d28; }
+      button:disabled { opacity: .45; cursor: default; }
+      #log { font: 12px/1.5 ui-monospace, Menlo, monospace; color: #cfc8ec; white-space: pre-wrap; min-height: 3em; }
+      .note { font-size: 12px; color: #8a8a9c; margin-top: 16px; }
+      .bad { color: #e0a96d; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="word">hyphae</div>
+      <h1>Update</h1>
+      <p class="sub">Updates come from signed releases on GitHub. Nothing is installed unless its signature verifies against the key built into this extension.</p>
+
+      <div class="card">
+        <div class="k">Installed</div>
+        <div class="v" id="have">…</div>
+      </div>
+
+      <div class="card">
+        <div class="k">Extension folder</div>
+        <div class="v" id="folder">not chosen</div>
+        <div class="note">Chrome won't let an extension change its own files. You grant access to this one folder once; hyphae writes the verified update into it and reloads itself.</div>
+        <div class="row"><button id="choose">Choose the extension folder</button></div>
+      </div>
+
+      <div class="card">
+        <div class="k">Latest release</div>
+        <div class="v" id="latest">not checked</div>
+        <div class="row">
+          <button id="check">Check for updates</button>
+          <button id="install" class="primary" disabled>Install and reload</button>
+        </div>
+      </div>
+
+      <div class="card"><div id="log"></div></div>
+      <div class="note">To check, hyphae asks GitHub for the latest release of <span id="repo"></span>; GitHub sees your IP address and nothing else. The signature is checked before any file is written, and a release that is not newer than this one is refused.</div>
+    </main>
+    <script src="update-core.js"></script>
+    <script src="release-key.js"></script>
+    <script src="update.js"></script>
+  </body>
+</html>

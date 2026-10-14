@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- drive-page.js against a stand-in Drive list: pick or drop a file, confirm, watch it seal,
+     see what "Drive" receives, and flip hyphae on and off to see names readable or as stored.
+     Serve extension/ and open /test/drive-page.stub.html -->
+<html><head><meta charset="utf-8"><title>Drive page, stubbed</title>
+<style>
+  body{margin:0;font:14px/1.45 "Helvetica Neue",Arial,sans-serif;background:#f6f8fc;color:#202124}
+  header{display:flex;align-items:center;gap:12px;height:56px;padding:0 16px;border-bottom:1px solid #e0e3eb;background:#f6f8fc}
+  header .logo{font:600 18px Arial;color:#1a73e8}header .sp{flex:1}
+  header .ic{width:28px;height:28px;border-radius:50%;background:#dfe3ea}
+  header a.acct{width:32px;height:32px;border-radius:50%;background:#5a46a8;color:#fff;text-align:center;line-height:32px;text-decoration:none}
+  main{padding:18px 24px;max-width:860px}
+  #zone{border:2px dashed #c4c7d0;border-radius:12px;padding:22px;text-align:center;color:#5f6368;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden}
+  td,th{padding:8px 12px;border-bottom:1px solid #eee;text-align:left;font-size:13px}
+  .mono{font:11.5px/1.4 ui-monospace,Menlo,monospace;color:#7c5a2a;word-break:break-all}
+  #recv{margin-top:14px;background:#fff;border:1px solid #dadce0;border-radius:8px;padding:10px 14px;font-size:13px}
+</style></head>
+<body>
+<header><span class="logo">Drive</span><span class="sp"></span><span class="ic"></span><span class="ic"></span><a class="acct" aria-label="Google Account: Test (t@example.com)">T</a></header>
+<main>
+  <div id="zone">Drop files here, or <input id="pick" type="file" multiple></div>
+  <table id="list"><tr><th>Name (what Drive stores)</th><th>Size</th><th>First bytes</th></tr></table>
+  <div id="recv">Drive has received nothing yet.</div>
+</main>
+<script src="../crypto.js"></script>
+<script src="../drive/hash.js"></script>
+<script src="../drive/seal.js"></script>
+<script>window.__hyphaeDriveAllow = true;</script>
+<script src="../drive-page.js"></script>
+<script>
+  // the stand-in "Drive": its own handlers, which only ever see what hyphae lets through
+  function ascii(u8, n) { var s = ""; for (var i = 0; i < Math.min(n, u8.length); i++) s += (u8[i] >= 32 && u8[i] < 127) ? String.fromCharCode(u8[i]) : "·"; return s; }
+  async function receive(files) {
+    var recv = document.getElementById("recv"); recv.textContent = "";
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i], head = new Uint8Array(await f.slice(0, 24).arrayBuffer());
+      var tr = document.createElement("tr");
+      [f.name, f.size + " B", ascii(head, 24)].forEach(function (t, k) { var td = document.createElement("td"); if (k === 2) td.className = "mono"; td.textContent = t; tr.appendChild(td); });
+      document.getElementById("list").appendChild(tr);
+      recv.textContent += "Drive received: " + f.name + " (" + f.size + " B)   ";
+    }
+    window.__received = (window.__received || []).concat(Array.prototype.map.call(files, function (f) { return f.name; }));
+  }
+  document.getElementById("pick").addEventListener("change", function (e) { receive(e.target.files); });
+  var z = document.getElementById("zone");
+  z.addEventListener("dragover", function (e) { e.preventDefault(); });
+  z.addEventListener("drop", function (e) { e.preventDefault(); receive(e.dataTransfer.files); });
+</script>
+</body></html>

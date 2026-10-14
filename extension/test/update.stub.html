@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- Runs the real update page against stand-ins for chrome.*, the folder picker and GitHub, so the
+     whole path (check, verify, write, reload) can be watched without installing anything.
+     Serve the repo root and open /extension/test/update.stub.html after `hyphae-release build`. -->
+<html><head><meta charset="utf-8"><title>update page, stubbed</title></head>
+<body>
+<script>
+  var written = {}, reloaded = 0;
+  function memDir(name, files) {
+    var dir = { kind: "directory", name: name, children: {}, files: files || {} };
+    dir.getFileHandle = async function (n, o) {
+      if (!dir.files[n] && !(o && o.create)) { var e = new Error("NotFound"); e.name = "NotFoundError"; throw e; }
+      return { getFile: async function () { return new Blob([dir.files[n] || ""]); },
+               createWritable: async function () { var chunks = []; return { write: async function (b) { chunks.push(b); }, close: async function () { dir.files[n] = new Blob(chunks); written[(dir.path || "") + n] = true; } }; } };
+    };
+    dir.getDirectoryHandle = async function (n, o) { if (!dir.children[n]) { dir.children[n] = memDir(n, {}); dir.children[n].path = (dir.path || "") + n + "/"; } return dir.children[n]; };
+    dir.requestPermission = async function () { return "granted"; };
+    return dir;
+  }
+  var folder = memDir("hyphae-extension", { "manifest.json": JSON.stringify({ manifest_version: 3, name: "hyphae — seal anything you write", version: "0.3.9" }) });
+  window.showDirectoryPicker = async function () { return folder; };
+  window.chrome = {
+    runtime: { getManifest: function () { return { name: "hyphae — seal anything you write", version: "0.3.9" }; }, reload: function () { reloaded++; } },
+    permissions: { request: async function () { return true; } },
+  };
+  var realFetch = window.fetch.bind(window);
+  window.fetch = async function (u) {
+    u = String(u);
+    if (u.indexOf("api.github.com") !== -1) {
+      return new Response(JSON.stringify({ tag_name: "v0.4.0", assets: [
+        { name: "hyphae-extension.zip", browser_download_url: location.origin + "/release/hyphae-extension.zip" },
+        { name: "hyphae-extension.zip.sig", browser_download_url: location.origin + "/release/hyphae-extension.zip.sig" } ] }), { status: 200 });
+    }
+    return realFetch(u);
+  };
+  // the page's own markup, scripts and all, is loaded into this document
+  fetch("/extension/update.html").then(function (r) { return r.text(); }).then(function (html) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    document.head.innerHTML = ""; doc.head.querySelectorAll("style,title,meta").forEach(function (n) { document.head.appendChild(n.cloneNode(true)); });
+    document.body.innerHTML = doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/g, "");
+    var srcs = ["/extension/update-core.js", "/extension/release-key.js", "/extension/update.js"];
+    srcs.reduce(function (p, s) { return p.then(function () { return new Promise(function (res) { var el = document.createElement("script"); el.src = s; el.onload = res; document.body.appendChild(el); }); }); }, Promise.resolve())
+      .then(function () { window.__loaded = true; });
+  });
+</script>
+</body></html>
