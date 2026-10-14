@@ -23,6 +23,8 @@
 
     if (d.type === "ping") {
       toPage({ type: "hello" });
+    } else if (d.type === "session") {
+      chrome.runtime.sendMessage({ hyphae: "session", user: typeof d.user === "string" ? d.user : null });
     } else if (d.type === "circles" && Array.isArray(d.circles)) {
       chrome.runtime.sendMessage({ hyphae: "merge-circles", circles: d.circles }, function (r) {
         toPage({ type: "ack", added: (r && r.added) || 0, total: (r && r.total) || 0 });

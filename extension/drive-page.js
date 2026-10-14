@@ -27,7 +27,7 @@
   var FONT = "'Helvetica Neue','SF Pro Display',ui-sans-serif,system-ui,sans-serif";
   var NAME_RE = /^hy-[a-z2-7]{24}\.hyd$/;
   var BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
-  var on = false, circle = null, askFirst = true, log = [], dock = null;
+  var on = false, signedIn = false, circle = null, askFirst = true, log = [], dock = null;
   var names = {};                       // opaque name -> real name, kept in extension storage when there is one
   var swapped = new Map();              // text node -> the text Drive had there
   var sealedFiles = (typeof WeakSet === "function") ? new WeakSet() : null;
@@ -202,7 +202,7 @@
       var veil = el("div", "veil"), card = el("div", "card");
       card.appendChild(el("div", "word", "hyphae"));
       card.appendChild(el("h2", "", files.length === 1 ? "Would you like to encrypt this with hyphae?" : "Would you like to encrypt these " + files.length + " files with hyphae?"));
-      card.appendChild(el("div", "sub", "It is sealed on this device first. Drive stores only ciphertext under a hyphae name, and only your circle can open it."));
+      card.appendChild(el("div", "sub", "It is sealed on this device first. Drive stores only ciphertext under a hyphae name, and only you can open it."));
       var list = el("div", "files");
       files.slice(0, 20).forEach(function (f) {
         var r = el("div", "f"); r.appendChild(el("span", "", f.name)); r.appendChild(el("span", "", human(f.size)));
@@ -288,10 +288,26 @@
       if (i < files.length - 1) await wait(reduced ? 0 : 350);
     }
     title.textContent = files.length > 1 ? "Sealed " + files.length + " files" : "Sealed";
-    sub.textContent = "Uploading the encrypted file now. Only your circle can open it.";
+    sub.textContent = "Uploading the encrypted file now. Only you can open it.";
     await wait(reduced ? 200 : 1100);
     closeOverlay();
     return outs;
+  }
+
+
+  /** Sealing and opening need the Matrix sign-in; this says so and offers the way there. */
+  function needSignIn() {
+    var o = overlayRoot(); clearOverlay();
+    var veil = el("div", "veil"), card = el("div", "card");
+    card.appendChild(el("div", "word", "hyphae"));
+    card.appendChild(el("h2", "", "Sign in to hyphae first"));
+    card.appendChild(el("div", "sub", "hyphae seals and opens files only while you are signed in with your Matrix account. Sign in, then come back here."));
+    var row = el("div", "row"); row.appendChild(el("span", "grow"));
+    var no = el("button", "", "Not now"), go = el("button", "p", "Open hyphae");
+    no.addEventListener("click", closeOverlay);
+    go.addEventListener("click", function () { window.open("https://mail.hyphae.social/app/", "_blank", "noopener"); closeOverlay(); });
+    row.appendChild(no); row.appendChild(go); card.appendChild(row);
+    veil.appendChild(card); o.slot.appendChild(veil);
   }
 
   /** The decision for one batch: files to hand to Drive, or null to hand nothing. */
@@ -533,14 +549,14 @@
     var st = el("div", "st"), sub = el("div", "sub"), lg = el("div", "log");
     var row = el("div", "row");
     var copy = el("button", "mb", "Copy circle code"); copy.type = "button";
-    row.appendChild(copy);
-    var note = el("div", "note");
-    note.textContent = "On: uploads are sealed first, sealed files show as “hyphae · name”, and double-clicking one opens it decrypted, editable and re-sealed on save. Off: sealed files are unreadable ciphertext named hy-….hyd. Share with Google's Share dialog as usual; give the circle code by Signal or in person, never in Drive or email.";
+        var note = el("div", "note");
+    note.textContent = "On: uploads are sealed first, sealed files show as “hyphae · name”, and double-clicking one opens it decrypted, editable and re-sealed on save. Off: sealed files are unreadable ciphertext named hy-….hyd.";
     [hd, st, sub, lg, row, note].forEach(function (n) { menu.appendChild(n); });
     shadow.appendChild(btn); shadow.appendChild(menu);
 
     sw.addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation();
+      if (!on && !signedIn) { needSignIn(); return; }
       on = !on;
       try { chrome.storage.local.set({ driveSeal: on }); } catch (x) { /* ignore */ }
       swapNow(); paint(true);
@@ -601,8 +617,9 @@
     dock.key = key;
     dock.btn.className = "btn" + (on ? " on" : "");
     dock.sw.className = "sw" + (on ? " on" : "");
-    dock.st.textContent = on ? "On: sealing uploads, showing real names" : "Off: Drive gets and shows files as they are";
-    dock.sub.textContent = circle ? ("Circle “" + circle.name + "” · Google Docs, Sheets and Slides can't be sealed") : "No circle yet — add one in hyphae";
+    if (!signedIn) { dock.st.textContent = "Signed out: sign in to hyphae with Matrix to use it"; dock.sub.textContent = "Open mail.hyphae.social/app and sign in"; }
+    else dock.st.textContent = on ? "On: sealing uploads, showing real names" : "Off: Drive gets and shows files as they are";
+    if (signedIn) dock.sub.textContent = circle ? ("Just you · Google Docs, Sheets and Slides can't be sealed") : "No circle yet — add one in hyphae";
     while (dock.lg.firstChild) dock.lg.removeChild(dock.lg.firstChild);
     log.forEach(function (l) { dock.lg.appendChild(el("div", "", l.msg)); });
   }
@@ -610,11 +627,12 @@
   function loadState(cb) {
     try {
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(["circles", "active", "driveSeal", "driveNames"], function (d) {
+        chrome.storage.local.get(["circles", "active", "driveSeal", "driveNames", "matrixUser"], function (d) {
+          signedIn = !!(d && d.matrixUser);
           var cs = (d && d.circles) || {};
           var kid = (d && d.active && cs[d.active]) ? d.active : Object.keys(cs)[0];
-          circle = kid ? cs[kid] : null;
-          if (d && d.driveSeal === true) on = true;
+          circle = (kid && signedIn) ? cs[kid] : null;
+          if (d && d.driveSeal === true && signedIn) on = true;
           if (d && d.driveNames && typeof d.driveNames === "object") names = Object.assign(names, d.driveNames);
           cb();
         });
@@ -626,6 +644,7 @@
 
   window.__hyphaeDrive = {
     setCircle: function (c) { circle = c; paint(true); },
+    setSignedIn: function (v) { signedIn = !!v; if (!signedIn) on = false; swapNow(); paint(true); },
     setOn: function (v) { on = !!v; swapNow(); paint(true); },
     setNames: function (m) { names = Object.assign(names, m || {}); swapNow(); },
     setAsk: function (v) { askFirst = !!v; },
@@ -641,5 +660,11 @@
       delete window.__hyphaeDrive;
     },
   };
+  try {
+    chrome.storage.onChanged.addListener(function (ch, area) {
+      if (area !== "local" || !ch.matrixUser) return;
+      loadState(function () { if (!signedIn) on = false; swapNow(); paint(true); });
+    });
+  } catch (e) { /* no live follow */ }
   loadState(function () { paint(true); swapNow(); setInterval(function () { paint(false); }, 1000); });
 })();

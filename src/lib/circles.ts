@@ -108,6 +108,25 @@ export function pushToExtension(circles: Circle[]): void {
   window.postMessage({ source: "hyphae-app", type: "circles", circles }, window.location.origin);
 }
 
+let announced: string | null = null;
+
+/**
+ * Tell the extension who is signed in to Matrix here (or null on sign-out). The extension
+ * seals and opens nothing until it knows; it re-asks whenever its bridge says hello.
+ */
+export function announceSession(user: string | null): void {
+  announced = user;
+  window.postMessage({ source: "hyphae-app", type: "session", user }, window.location.origin);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("message", (ev: MessageEvent) => {
+    if (ev.source !== window || ev.origin !== window.location.origin) return;
+    const d = ev.data as { source?: string; type?: string } | null;
+    if (d && d.source === "hyphae-ext" && d.type === "hello") announceSession(announced);
+  });
+}
+
 export function pingExtension(): void {
   window.postMessage({ source: "hyphae-app", type: "ping" }, window.location.origin);
 }

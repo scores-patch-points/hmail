@@ -257,6 +257,15 @@
     window.close();
   });
 
+  chrome.storage.local.get("matrixUser", function (d) {
+    if (d && d.matrixUser) return;
+    document.body.classList.add("locked");
+    $("gate").style.display = "block";
+    $("gateOpen").addEventListener("click", function () {
+      chrome.tabs.create({ url: "https://mail.hyphae.social/app/" });
+    });
+  });
+
   load();
   loadAuto();
   loadSecure();

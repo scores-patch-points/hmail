@@ -295,6 +295,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
   if (msg.hyphae === "get-circles") {
     if (sender.id !== chrome.runtime.id || !sender.tab || !sender.tab.url) { send({ circles: null }); return; }
     (async function () {
+      if (!(await chrome.storage.local.get("matrixUser")).matrixUser) return send({ circles: null, signedOut: true });
       var s = await autoState();
       var host = "";
       try { host = new URL(sender.tab.url).hostname.toLowerCase(); } catch (e) { /* ignore */ }
@@ -356,4 +357,26 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
     send({ ok: true, b64: btoa(s) });
   })().catch(function (e) { send({ ok: false, message: String(e && e.message || e) }); });
   return true;
+});
+
+// Sign-in gate. The hub page (signed in to Matrix) tells us who it is; until it has, no key
+// is handed to any page and the Drive layer stays off. It is a gate, not a boundary: it
+// follows what the hub origin's own page says, and the hub is the only place that can say it.
+chrome.runtime.onMessage.addListener(function (msg, sender, send) {
+  if (!msg || msg.hyphae !== "session") return;
+  if (!sender || !sender.tab || !HUB_ORIGIN.test(sender.url || "")) return;
+  var u = typeof msg.user === "string" ? msg.user.trim().slice(0, 200) : "";
+  if (!u) { chrome.storage.local.remove("matrixUser"); return; }
+  // One person for now: the first sign-in makes a personal circle (a key only this device
+  // and you hold), so there is never a "no circle yet". Sharing with others comes later,
+  // by invitation, on top of the same circle model.
+  (async function () {
+    var st = await circlesByKid();
+    if (!Object.keys(st.circles).length) {
+      var c = HyCrypto.newCircle("Personal");
+      st.circles[c.kid] = c;
+      await chrome.storage.local.set({ circles: st.circles, active: c.kid });
+    }
+    await chrome.storage.local.set({ matrixUser: u });
+  })();
 });

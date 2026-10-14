@@ -3,6 +3,7 @@ import { Setup } from "@/components/setup";
 import { SignIn } from "@/components/sign-in";
 import { Dashboard } from "@/components/dashboard";
 import { hasLocalConfig, resetLocalConfig, signOut } from "@/lib/account";
+import { announceSession } from "@/lib/circles";
 
 type View = "loading" | "setup" | "signin" | "app";
 
@@ -27,6 +28,11 @@ export default function App() {
   useEffect(() => {
     setView(hasLocalConfig() ? "signin" : "setup");
   }, []);
+
+  // The extension seals and opens nothing until this page says a Matrix account is signed in.
+  useEffect(() => {
+    announceSession(creds ? creds.email : null);
+  }, [creds]);
 
   async function handleSignOut() {
     await signOut().catch(() => undefined);
