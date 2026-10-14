@@ -41,7 +41,18 @@
     return JSON.parse(await f.text());
   }
 
+  var CMD = "rm -rf ~/hyphae-extension && mkdir ~/hyphae-extension && gh release download -R " + KEY.repo + " --pattern " + KEY.asset + " -O /tmp/hy.zip --clobber && unzip -q -o /tmp/hy.zip -d ~/hyphae-extension";
+
+  // This browser has no folder picker (Brave turns it off), so it can't write the update
+  // itself. Say so, give the one command that does, and offer the reload that picks it up.
+  function noPicker() {
+    $("reload").style.display = "inline-block";
+    say("This browser has no folder access (Brave disables it: brave://flags/#file-system-access-api, then restart).\n\n" +
+      "Or update by hand — run this in a terminal, then press Reload hyphae:\n\n" + CMD, true);
+  }
+
   async function chooseFolder() {
+    if (typeof window.showDirectoryPicker !== "function") return noPicker();
     var h = await window.showDirectoryPicker({ id: "hyphae-extension", mode: "readwrite" });
     var m;
     try { m = await readJson(h, "manifest.json"); } catch (e) { throw new Error("that folder has no manifest.json"); }
@@ -84,6 +95,7 @@
 
   async function install(silent) {
     if (!latest) throw new Error("Check for updates first.");
+    if (typeof window.showDirectoryPicker !== "function") return noPicker();
     var h = await kvGet("dir");
     if (!h) throw new Error("Choose the extension folder first.");
     var perm = silent ? await h.queryPermission({ mode: "readwrite" }) : await h.requestPermission({ mode: "readwrite" });
@@ -121,6 +133,7 @@
   $("choose").addEventListener("click", guard(chooseFolder));
   $("check").addEventListener("click", guard(function () { return check(false); }));
   $("install").addEventListener("click", guard(function () { return install(false); }));
+  $("reload").addEventListener("click", function () { chrome.runtime.reload(); });
 
   // Opened by the background worker (?auto=1) when a newer release is out: install it if
   // nothing needs asking, otherwise close and leave the ↑ for the popup to offer.
