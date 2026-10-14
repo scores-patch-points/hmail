@@ -257,6 +257,15 @@
     window.close();
   });
 
+  var ver = chrome.runtime.getManifest().version;
+  $("syncState").textContent = "v" + ver;
+  $("syncGh").addEventListener("click", async function () {
+    $("syncState").textContent = "checking…";
+    var u = await chrome.runtime.sendMessage({ hyphae: "update-sync" });
+    $("syncState").textContent = !u ? "couldn't reach GitHub"
+      : u.available ? "installing v" + u.latest + "…" : "v" + ver + " · up to date";
+  });
+
   chrome.storage.local.get("matrixUser", function (d) {
     if (d && d.matrixUser) return;
     document.body.classList.add("locked");

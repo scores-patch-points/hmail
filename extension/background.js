@@ -380,3 +380,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
     await chrome.storage.local.set({ matrixUser: u });
   })();
 });
+
+// "Sync with GitHub": check now and, if a newer signed release is out, install it now.
+chrome.runtime.onMessage.addListener(function (msg, sender, send) {
+  if (!msg || msg.hyphae !== "update-sync") return;
+  if (sender.id !== chrome.runtime.id || sender.tab) return;
+  checkUpdate(true).then(function (u) {
+    if (u && u.available) chrome.tabs.create({ url: chrome.runtime.getURL("update.html?auto=1"), active: false });
+    send(u);
+  }, function () { send(null); });
+  return true;
+});
