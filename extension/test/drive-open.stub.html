@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>Drive open, stubbed</title>
+<header><a aria-label="Google Account: Test">T</a></header>
+<main role="main" id="main"><div id="row" data-id="1AbCdEfGhIjKlMnOpQr" tabindex="0"><span id="nm">hy-abcdefghijklmnopqrstuvwx.hyd</span></div></main>
+<script src="../crypto.js"></script><script src="../drive/hash.js"></script><script src="../drive/seal.js"></script>
+<script>
+  window.__hyphaeDriveAllow = true; window.__dropped = [];
+  window.__circle = HyCrypto.newCircle("Test");
+  window.__sealedP = HyDriveSeal.sealBytes(window.__circle, new TextEncoder().encode("hello sealed world"), { name: "note.txt", mime: "text/plain", size: 18, mtime: 1, id: "x", path: null });
+  window.chrome = { runtime: { lastError: null, sendMessage: function (m, cb) {
+    window.__sealedP.then(function (u8) { var s = ""; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); cb({ ok: true, b64: btoa(s) }); });
+  } }, storage: { local: { get: function (k, cb) { cb({ circles: { k1: window.__circle }, active: "k1", driveSeal: true }); }, set: function () {} } } };
+  document.getElementById("main").addEventListener("drop", function (e) { e.preventDefault(); window.__dropped = window.__dropped.concat(Array.prototype.map.call(e.dataTransfer.files, function (f) { return f; })); });
+</script>
+<script src="../drive-page.js"></script>

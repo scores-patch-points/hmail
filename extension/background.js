@@ -337,3 +337,23 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
     return true;
   }
 });
+
+// Drive: fetch a sealed file's bytes for the page viewer (drive-page.js), with the signed-in
+// Drive session. Only from a drive.google.com tab of ours; the page decrypts, not this worker.
+chrome.runtime.onMessage.addListener(function (msg, sender, send) {
+  if (!msg || msg.hyphae !== "drive-fetch") return;
+  var okTab = sender.id === chrome.runtime.id && sender.tab && /^https:\/\/drive\.google\.com\//.test(sender.url || "");
+  var id = String(msg.id || "");
+  if (!okTab || !/^[\w-]{10,80}$/.test(id)) { send({ ok: false, message: "refused" }); return; }
+  (async function () {
+    var r = await fetch("https://drive.google.com/uc?export=download&confirm=t&id=" + encodeURIComponent(id), { credentials: "include", cache: "no-store" });
+    if (!r.ok) throw new Error("Drive answered " + r.status);
+    if (/text\/html/i.test(r.headers.get("content-type") || "")) throw new Error("Drive returned a page, not the file (sign in, or the file is not shared with you)");
+    var buf = new Uint8Array(await r.arrayBuffer());
+    if (buf.length > 32 * 1048576) throw new Error("file is larger than 32 MB");
+    var s = "";
+    for (var i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    send({ ok: true, b64: btoa(s) });
+  })().catch(function (e) { send({ ok: false, message: String(e && e.message || e) }); });
+  return true;
+});

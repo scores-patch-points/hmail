@@ -59,13 +59,13 @@
   function remember(opaque, real) { names[opaque] = real; saveNames(); swapNow(); }
 
   /** One file in, one sealed File out. The real name travels inside the sealed bytes. */
-  async function sealFile(file) {
+  async function sealFile(file, keepName) {
     var bytes = new Uint8Array(await file.arrayBuffer());
     var sealed = await Seal.sealBytes(circle, bytes, {
       name: file.name, mime: file.type || "application/octet-stream", size: bytes.length,
       mtime: file.lastModified || Date.now(), id: "upload", path: null,
     });
-    var out = new File([sealed], opaqueName(), { type: "application/octet-stream", lastModified: Date.now() });
+    var out = new File([sealed], keepName || opaqueName(), { type: "application/octet-stream", lastModified: Date.now() });
     if (sealedFiles) sealedFiles.add(out);
     remember(out.name, file.name);
     say(file.name + "  →  " + out.name + "  (" + bytes.length + " B in, " + sealed.length + " B sealed)");
@@ -86,7 +86,10 @@
   function swapNow() {
     if (on) {
       eachNameNode(function (n, v) {
-        if (NAME_RE.test(v) && names[v] && !swapped.has(n)) { swapped.set(n, n.nodeValue); n.nodeValue = names[v] + "  ·  sealed"; }
+        if (NAME_RE.test(v) && !swapped.has(n)) {
+          swapped.set(n, n.nodeValue);
+          n.nodeValue = "hyphae  ·  " + (names[v] || "sealed file " + v.slice(3, 9));
+        }
       });
     } else {
       swapped.forEach(function (orig, n) { if (n.isConnected) n.nodeValue = orig; });
@@ -198,8 +201,8 @@
       var o = overlayRoot(); clearOverlay();
       var veil = el("div", "veil"), card = el("div", "card");
       card.appendChild(el("div", "word", "hyphae"));
-      card.appendChild(el("h2", "", files.length === 1 ? "Seal this file before Drive gets it?" : "Seal these " + files.length + " files before Drive gets them?"));
-      card.appendChild(el("div", "sub", "Drive will store an encrypted file under a random name. Only your circle can open it."));
+      card.appendChild(el("h2", "", files.length === 1 ? "Would you like to encrypt this with hyphae?" : "Would you like to encrypt these " + files.length + " files with hyphae?"));
+      card.appendChild(el("div", "sub", "It is sealed on this device first. Drive stores only ciphertext under a hyphae name, and only your circle can open it."));
       var list = el("div", "files");
       files.slice(0, 20).forEach(function (f) {
         var r = el("div", "f"); r.appendChild(el("span", "", f.name)); r.appendChild(el("span", "", human(f.size)));
@@ -212,7 +215,7 @@
       lab.appendChild(cb); lab.appendChild(document.createTextNode("Don't ask again on this page"));
       row.appendChild(lab); row.appendChild(el("span", "grow"));
       function done(v) { document.removeEventListener("keydown", onKey, true); if (cb.checked && v === "seal") askFirst = false; resolve(v); }
-      var no = el("button", "", "Cancel"), plain = el("button", "", "Upload without sealing"), yes = el("button", "p", "Seal and upload");
+      var no = el("button", "", "Cancel"), plain = el("button", "", "Upload as is"), yes = el("button", "p", "Encrypt with hyphae");
       no.addEventListener("click", function () { done("cancel"); });
       plain.addEventListener("click", function () { done("plain"); });
       yes.addEventListener("click", function () { done("seal"); });
@@ -358,6 +361,143 @@
     });
   }, true);
 
+
+  // ---- open a sealed file: decrypt it here, edit it, seal the edit back ------------------------
+  // Double-click (or Enter on) a sealed row while hyphae is on. The bytes are fetched with
+  // your own Drive session, opened on this device with the circle key, and shown in hyphae's
+  // viewer; text can be edited and saved. A save is sealed under the same Drive name and
+  // handed to Drive's own uploader, which asks Replace or Keep both: Replace is a new version.
+  var TEXT_RE = /^(text\/|application\/(json|xml|javascript|x-sh|x-yaml|yaml|csv))|\+(json|xml)$/;
+  var TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|c|h|cpp|sh|yml|yaml|toml|ini|log|sql|tex)$/i;
+  var MAX_OPEN = 32 * 1048576;
+
+  function b64ToBytes(b64) {
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function saveBlob(bytes, name, type) {
+    var url = URL.createObjectURL(new Blob([bytes], { type: type || "application/octet-stream" }));
+    var a = document.createElement("a"); a.href = url; a.download = name;
+    (document.body || document.documentElement).appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  function isTextFile(meta) { return TEXT_RE.test(meta.mime || "") || TEXT_EXT.test(meta.name || ""); }
+
+  /** The Drive file id and opaque name of the sealed row an event came from, or null. */
+  function sealedRowOf(target) {
+    var row = target && target.closest ? target.closest("[data-id]") : null;
+    if (!row) return null;
+    var id = row.getAttribute("data-id");
+    if (!/^[\w-]{10,80}$/.test(id || "")) return null;
+    var found = null, w = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, null), n;
+    while ((n = w.nextNode())) {
+      var v = (swapped.has(n) ? swapped.get(n) : n.nodeValue || "").trim();
+      if (NAME_RE.test(v)) { found = v; break; }
+    }
+    return found ? { id: id, opaque: found } : null;
+  }
+
+  function fetchSealed(id) {
+    return new Promise(function (resolve, reject) {
+      try {
+        chrome.runtime.sendMessage({ hyphae: "drive-fetch", id: id }, function (r) {
+          if (chrome.runtime.lastError || !r) return reject(new Error("could not reach hyphae to download the file"));
+          if (!r.ok) return reject(new Error(r.message || "Drive did not return the file"));
+          resolve(b64ToBytes(r.b64));
+        });
+      } catch (e) { reject(e); }
+    });
+  }
+
+  async function openSealed(hit) {
+    var o = overlayRoot(); clearOverlay();
+    var veil = el("div", "veil"), card = el("div", "card");
+    card.style.width = "720px";
+    card.appendChild(el("div", "word", "hyphae"));
+    var title = el("h2", "", names[hit.opaque] || "Opening…");
+    var sub = el("div", "sub", "Downloading the sealed file and opening it on this device.");
+    card.appendChild(title); card.appendChild(sub);
+    var body = el("div", "stage"); body.style.maxHeight = "60vh"; body.style.overflow = "auto";
+    card.appendChild(body);
+    var row = el("div", "row"); card.appendChild(row);
+    veil.appendChild(card); o.slot.appendChild(veil);
+    function close() { document.removeEventListener("keydown", onKey, true); closeOverlay(); }
+    function onKey(e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } }
+    document.addEventListener("keydown", onKey, true);
+    function button(label, cls, fn) { var b = el("button", cls || "", label); b.addEventListener("click", fn); row.appendChild(b); return b; }
+    function fail(msg) {
+      title.textContent = "Could not open this file"; sub.textContent = msg;
+      row.appendChild(el("span", "grow")); button("Close", "p", close);
+    }
+    if (!circle) return fail("Add a circle in hyphae first.");
+    try {
+      var sealed = await fetchSealed(hit.id);
+      if (sealed.length > MAX_OPEN) return fail("This file is larger than hyphae opens in the page (32 MB).");
+      var opened = await Seal.openBytes([circle], sealed);
+      var meta = opened.meta || {}, plain = opened.data || opened.bytes;
+      if (!plain) throw new Error("the sealed file has no content");
+      remember(hit.opaque, meta.name || hit.opaque);
+      title.textContent = meta.name || "Sealed file";
+      sub.textContent = human(plain.length) + "  ·  decrypted on this device; Drive holds only the sealed bytes";
+      var mime = meta.mime || "application/octet-stream";
+      var area = null, url = null;
+      if (isTextFile(meta) && plain.length < 4 * 1048576) {
+        area = document.createElement("textarea");
+        area.value = new TextDecoder().decode(plain);
+        area.style.cssText = "width:100%;height:46vh;box-sizing:border-box;background:#171925;color:#cfc8ec;border:0;outline:0;resize:none;font:12.5px/1.5 ui-monospace,Menlo,monospace";
+        ["keydown", "keyup", "keypress"].forEach(function (t) { area.addEventListener(t, function (e) { if (e.key !== "Escape") e.stopPropagation(); }); });
+        body.appendChild(area);
+      } else if (/^image\//.test(mime) && mime !== "image/svg+xml") {
+        url = URL.createObjectURL(new Blob([plain], { type: mime }));
+        var im = document.createElement("img"); im.src = url; im.style.cssText = "max-width:100%;display:block;margin:0 auto";
+        body.appendChild(im);
+      } else {
+        body.appendChild(el("div", "dim", "hyphae can't preview this type here. Download the decrypted file to open it."));
+      }
+      row.appendChild(el("span", "grow"));
+      button("Download decrypted", "", function () { saveBlob(area ? new TextEncoder().encode(area.value) : plain, meta.name || "file", mime); });
+      if (area) {
+        var save = button("Save (re-seal)", "p", async function () {
+          save.disabled = true;
+          try {
+            var edited = new File([area.value], meta.name || "file.txt", { type: mime, lastModified: Date.now() });
+            var res = await sealFile(edited, hit.opaque);
+            if (url) URL.revokeObjectURL(url);
+            close();
+            handToDrive(res.out);
+          } catch (err) { save.disabled = false; sub.textContent = "Not saved: " + (err && err.message ? err.message : err); }
+        });
+      }
+      button("Close", "", function () { if (url) URL.revokeObjectURL(url); close(); });
+    } catch (err) { fail(err && err.message ? err.message : String(err)); }
+  }
+
+  /** Give a sealed File to Drive's own uploader, as if it had been dropped on the file list. */
+  function handToDrive(file) {
+    var dt = new DataTransfer(); dt.items.add(file);
+    var target = document.querySelector('[role="main"]') || document.body;
+    var ev;
+    try { ev = new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }); }
+    catch (x) { ev = new Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = dt; }
+    ev.__hyphae = true;
+    target.dispatchEvent(ev);
+    toast("Saved sealed. If Drive asks, choose Replace — that makes it a new version.", 6000);
+  }
+
+  function intercept(e) {
+    if (!on) return;
+    if (e.type === "keydown" && e.key !== "Enter") return;
+    if (e.target && e.target.closest && e.target.closest("[data-hyphae-ui]")) return;
+    var hit = sealedRowOf(e.target);
+    if (!hit && e.type === "keydown") hit = sealedRowOf(document.activeElement);
+    if (!hit) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    openSealed(hit);
+  }
+  document.addEventListener("dblclick", intercept, true);
+  document.addEventListener("keydown", intercept, true);
+
   // ---- the header button and its menu -----------------------------------------------------------
   var CSS =
     ":host{all:initial}*{box-sizing:border-box}" +
@@ -395,7 +535,7 @@
     var copy = el("button", "mb", "Copy circle code"); copy.type = "button";
     row.appendChild(copy);
     var note = el("div", "note");
-    note.textContent = "On: uploads are sealed first, and sealed files you uploaded show their real names here. Off: Drive gets and shows files as they are. Share with Google's Share dialog as usual; give the circle code by Signal or in person, never in Drive or email.";
+    note.textContent = "On: uploads are sealed first, sealed files show as “hyphae · name”, and double-clicking one opens it decrypted, editable and re-sealed on save. Off: sealed files are unreadable ciphertext named hy-….hyd. Share with Google's Share dialog as usual; give the circle code by Signal or in person, never in Drive or email.";
     [hd, st, sub, lg, row, note].forEach(function (n) { menu.appendChild(n); });
     shadow.appendChild(btn); shadow.appendChild(menu);
 
