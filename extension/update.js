@@ -53,8 +53,8 @@
   }
 
   // ---- check ------------------------------------------------------------------------------
-  async function check() {
-    var ok = await chrome.permissions.request({ origins: ORIGINS });
+  async function check(silent) {
+    var ok = silent ? await chrome.permissions.contains({ origins: ORIGINS }) : await chrome.permissions.request({ origins: ORIGINS });
     if (!ok) throw new Error("Access to GitHub's release hosts wasn't granted.");
     var r = await fetch("https://api.github.com/repos/" + KEY.repo + "/releases/latest", { headers: { Accept: "application/vnd.github+json" }, credentials: "omit", cache: "no-store" });
     if (r.status === 404) throw new Error("No release has been published yet.");
@@ -82,11 +82,12 @@
     await w.close();
   }
 
-  async function install() {
+  async function install(silent) {
     if (!latest) throw new Error("Check for updates first.");
     var h = await kvGet("dir");
     if (!h) throw new Error("Choose the extension folder first.");
-    if ((await h.requestPermission({ mode: "readwrite" })) !== "granted") throw new Error("Write access to the folder wasn't granted.");
+    var perm = silent ? await h.queryPermission({ mode: "readwrite" }) : await h.requestPermission({ mode: "readwrite" });
+    if (perm !== "granted") throw new Error("Write access to the folder wasn't granted.");
 
     say("Downloading v" + latest.version + "…");
     var zr = await fetch(latest.zipUrl, { credentials: "omit", cache: "no-store" });
@@ -118,7 +119,17 @@
   $("have").textContent = "v" + cur.version;
   $("repo").textContent = KEY.repo;
   $("choose").addEventListener("click", guard(chooseFolder));
-  $("check").addEventListener("click", guard(check));
-  $("install").addEventListener("click", guard(install));
+  $("check").addEventListener("click", guard(function () { return check(false); }));
+  $("install").addEventListener("click", guard(function () { return install(false); }));
+
+  // Opened by the background worker (?auto=1) when a newer release is out: install it if
+  // nothing needs asking, otherwise close and leave the ↑ for the popup to offer.
+  if (/[?&]auto=1\b/.test(location.search)) {
+    (async function () {
+      await check(true);
+      if (!$("install").disabled) await install(true);
+      else window.close();
+    })().catch(function () { window.close(); });
+  }
   kvGet("dir").then(function (h) { if (h) $("folder").textContent = h.name + "  (saved)"; }, function () { /* none */ });
 })();

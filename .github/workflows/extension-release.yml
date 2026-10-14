@@ -1,0 +1,60 @@
+name: Extension release
+
+# Every push to main that touches the extension publishes a signed release. Installed
+# copies poll GitHub for the latest release, verify its signature against the key built
+# into them (extension/release-key.js) and install it themselves.
+#
+# Version: MAJOR.MINOR from extension/manifest.json, PATCH = commits on main. It only
+# ever goes up, and it is stamped into the zip, not committed back.
+
+on:
+  push:
+    branches: [main]
+    paths: ["extension/**", "scripts/release-extension.mjs", ".github/workflows/extension-release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extension-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Version
+        id: v
+        run: |
+          base=$(node -p 'require("./extension/manifest.json").version.split(".").slice(0,2).join(".")')
+          v="$base.$(git rev-list --count HEAD)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" >/dev/null 2>&1; then echo "exists=1" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build and sign
+        if: steps.v.outputs.exists != '1'
+        env:
+          HYPHAE_RELEASE_KEY: ${{ secrets.HYPHAE_RELEASE_KEY }}
+        run: node scripts/release-extension.mjs "${{ steps.v.outputs.version }}" release
+
+      - name: Publish
+        if: steps.v.outputs.exists != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.v.outputs.version }}" \
+            release/hyphae-extension.zip release/hyphae-extension.zip.sig \
+            --title "hyphae extension v${{ steps.v.outputs.version }}" \
+            --notes "$(git log -1 --pretty='%s%n%n%b' | sed '/^Co-Authored-By/d')" \
+            --target "$GITHUB_SHA" --latest

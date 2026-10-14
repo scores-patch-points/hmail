@@ -1,6 +1,6 @@
 // Hyphae worker: keyboard shortcuts, circles arriving from the hub, and the
 // activity ledger. Shortcuts count as a user gesture, so activeTab grants one tab.
-importScripts("crypto.js", "ledger-core.js", "contacts/core.js", "invite/p256.js", "invite/spake2.js", "invite/hyinvite.js", "invite-bridge.js");
+importScripts("crypto.js", "ledger-core.js", "contacts/core.js", "invite/p256.js", "invite/spake2.js", "invite/hyinvite.js", "invite-bridge.js", "release-key.js");
 
 var storage = {
   get: async function (k) { return (await chrome.storage.local.get(k))[k]; },
@@ -170,8 +170,58 @@ async function registerAuto() {
   }]);
 }
 
-chrome.runtime.onInstalled.addListener(function () { registerAuto(); setMark(false); });
-chrome.runtime.onStartup.addListener(function () { registerAuto(); setMark(false); });
+// Updates. Every push to main publishes a signed release on GitHub (extension-release.yml).
+// The worker only asks GitHub for the latest release's version; it fetches no code. When
+// a newer one is out it opens update.html?auto=1 in a background tab, which downloads the
+// zip, verifies its signature against release-key.js, writes it into the folder you
+// granted once, and reloads. If that page can't finish without you (no folder yet, or
+// Chrome wants the folder permission confirmed) the toolbar shows ↑ and the popup offers
+// the update instead.
+var RELEASES_URL = "https://api.github.com/repos/" + self.HyReleaseKey.repo + "/releases/latest";
+var UPDATE_EVERY_MIN = 60;
+
+function newer(a, b) {
+  var x = String(a).split("."), y = String(b).split(".");
+  for (var i = 0; i < Math.max(x.length, y.length); i++) {
+    var d = (parseInt(x[i], 10) || 0) - (parseInt(y[i], 10) || 0);
+    if (d) return d > 0;
+  }
+  return false;
+}
+
+async function checkUpdate(force) {
+  var have = chrome.runtime.getManifest().version;
+  var d = (await chrome.storage.local.get("update")).update || {};
+  if (force || !d.checkedAt || Date.now() - d.checkedAt > 5 * 60 * 1000) {
+    try {
+      var r = await fetch(RELEASES_URL, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store", credentials: "omit" });
+      if (r.ok) {
+        var v = String((await r.json()).tag_name || "").replace(/^v/, "");
+        if (/^\d+(\.\d+){0,3}$/.test(v)) { d.latest = v; d.checkedAt = Date.now(); }
+      }
+    } catch (e) { /* offline: keep what we had */ }
+  }
+  var up = !!d.latest && newer(d.latest, have);
+  // One silent attempt per version; after that it waits for you in the popup.
+  if (up && d.autoTried !== d.latest) {
+    d.autoTried = d.latest;
+    chrome.tabs.create({ url: chrome.runtime.getURL("update.html?auto=1"), active: false });
+  }
+  await chrome.storage.local.set({ update: d });
+  return markUpdate(have, d.latest);
+}
+
+async function markUpdate(have, latest) {
+  var up = !!latest && newer(latest, have);
+  await chrome.action.setBadgeBackgroundColor({ color: "#5a46a8" });
+  await chrome.action.setBadgeText({ text: up ? "↑" : "" });
+  return { have: have, latest: latest || null, available: up };
+}
+
+chrome.alarms.create("hyphae-update", { periodInMinutes: UPDATE_EVERY_MIN, delayInMinutes: 1 });
+chrome.alarms.onAlarm.addListener(function (a) { if (a.name === "hyphae-update") checkUpdate(true); });
+chrome.runtime.onInstalled.addListener(function () { registerAuto(); setMark(false); checkUpdate(true); });
+chrome.runtime.onStartup.addListener(function () { registerAuto(); setMark(false); checkUpdate(true); });
 
 // The invite flow (invite/hyinvite.js through invite-bridge.js). The identity keys and
 // every pair key live only here; pages ask by message and get text and plain objects.
@@ -256,6 +306,17 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
   }
 
   // From our own popup only.
+  if (msg.hyphae === "update-check") {
+    if (sender.id !== chrome.runtime.id || sender.tab) return;
+    checkUpdate(msg.force === true).then(send, function () { send(null); });
+    return true;
+  }
+  if (msg.hyphae === "update-open") {
+    if (sender.id !== chrome.runtime.id || sender.tab) return;
+    chrome.tabs.create({ url: chrome.runtime.getURL("update.html") });
+    return;
+  }
+
   if (msg.hyphae === "auto-set" || msg.hyphae === "site-off") {
     if (sender.id !== chrome.runtime.id || sender.tab) return;
     (async function () {

@@ -246,7 +246,19 @@
     render();
   });
 
+  async function loadUpdate() {
+    var u = await chrome.runtime.sendMessage({ hyphae: "update-check" });
+    if (!u || !u.available) return;
+    $("updateText").textContent = "hyphae " + u.latest + " is out — this is " + u.have + ".";
+    $("update").style.display = "block";
+  }
+  $("updateOpen").addEventListener("click", function () {
+    chrome.runtime.sendMessage({ hyphae: "update-open" });
+    window.close();
+  });
+
   load();
   loadAuto();
   loadSecure();
+  loadUpdate().catch(function () { /* no banner */ });
 })();

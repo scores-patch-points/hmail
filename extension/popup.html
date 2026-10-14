@@ -24,12 +24,19 @@
       .note { font-size: 11px; color: GrayText; margin-top: 6px; }
       .power { font-size: 13px; font-weight: 600; padding: 8px 10px; border: 1px solid GrayText; border-radius: 8px; }
       .power:has(input:checked) { border-color: #059669; background: rgba(16,185,129,.12); }
+      #update { display: none; margin: 0 0 12px; padding: 8px 10px; border: 1px solid #5a46a8; border-radius: 8px; font-size: 12px; }
+      #update code { font: 11px ui-monospace, Menlo, monospace; }
       .power input { accent-color: #5a46a8; width: 16px; height: 16px; }
     </style>
   </head>
   <body>
     <h1>hyphae</h1>
     <p class="sub">Seal what you write, on any site.</p>
+
+    <div id="update" role="status">
+      <div id="updateText"></div>
+      <div class="row"><button id="updateOpen">Install update</button></div>
+    </div>
 
     <label class="inline power" for="secure">
       <input id="secure" type="checkbox" />
