@@ -257,6 +257,9 @@
     window.close();
   });
 
+  $("messages").addEventListener("click", function () {
+    chrome.tabs.create({ url: "https://app.element.io/#/login?hs_url=https%3A%2F%2Fhyphae.social" });
+  });
   var ver = chrome.runtime.getManifest().version;
   $("syncState").textContent = "v" + ver;
   $("syncGh").addEventListener("click", async function () {

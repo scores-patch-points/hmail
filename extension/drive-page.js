@@ -548,7 +548,8 @@
     hd.appendChild(el("span", "word", "hyphae")); hd.appendChild(sw);
     var st = el("div", "st"), sub = el("div", "sub"), lg = el("div", "log");
     var row = el("div", "row");
-    var copy = el("button", "mb", "Copy circle code"); copy.type = "button";
+    var copy = el("button", "mb", "Messages (Element)"); copy.type = "button";
+    row.appendChild(copy);
         var note = el("div", "note");
     note.textContent = "On: uploads are sealed first, sealed files show as “hyphae · name”, and double-clicking one opens it decrypted, editable and re-sealed on save. Off: sealed files are unreadable ciphertext named hy-….hyd.";
     [hd, st, sub, lg, row, note].forEach(function (n) { menu.appendChild(n); });
@@ -571,8 +572,7 @@
     });
     copy.addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation();
-      var code = circle && window.HyCrypto && window.HyCrypto.toWritten ? window.HyCrypto.toWritten(circle) : "";
-      try { navigator.clipboard.writeText(code); copy.textContent = "Copied: send it by Signal"; } catch (x) { copy.textContent = "Couldn't copy"; }
+      window.open("https://app.element.io/#/login?hs_url=https%3A%2F%2Fhyphae.social", "_blank", "noopener");
     });
     document.addEventListener("mousedown", function (e) { if (e.target !== host) menu.classList.remove("open"); }, true);
     ["mousedown", "mouseup", "click", "keydown", "keyup", "contextmenu"].forEach(function (t) {
