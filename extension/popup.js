@@ -257,6 +257,7 @@
     window.close();
   });
 
+  $("people").addEventListener("click", function () { chrome.tabs.create({ url: chrome.runtime.getURL("people.html") }); });
   $("messages").addEventListener("click", function () {
     chrome.tabs.create({ url: "https://app.element.io/#/login?hs_url=https%3A%2F%2Fhyphae.social" });
   });
