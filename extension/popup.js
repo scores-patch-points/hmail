@@ -257,6 +257,18 @@
     window.close();
   });
 
+  (async function () {
+    var sel = $("sealTo");
+    var cur = (await chrome.storage.local.get("sealTo")).sealTo || "";
+    var r = await chrome.runtime.sendMessage({ hyphae: "invite", op: "directory", args: {} });
+    ((r && r.people) || []).forEach(function (p) {
+      var o = document.createElement("option"); o.value = p.fp;
+      o.textContent = "Me and " + (p.name || (p.emails && p.emails[0]) || "a contact") + (p.status === "unverified" ? " (unverified)" : "");
+      sel.appendChild(o);
+    });
+    sel.value = cur;
+    sel.addEventListener("change", function () { chrome.storage.local.set({ sealTo: sel.value || null }); });
+  })().catch(function () { /* just you */ });
   $("people").addEventListener("click", function () { chrome.tabs.create({ url: chrome.runtime.getURL("people.html") }); });
   $("messages").addEventListener("click", function () {
     chrome.tabs.create({ url: "https://app.element.io/#/login?hs_url=https%3A%2F%2Fhyphae.social" });

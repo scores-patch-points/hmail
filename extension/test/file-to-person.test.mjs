@@ -36,5 +36,18 @@ ok(!stranger.ok, "a stranger cannot open it: " + stranger.reason);
 const nobody = await S.handle("seal-file", { fp: "nope", b64: b64(plain), meta: {} });
 ok(!nobody.ok && nobody.reason === "not-connected", "unknown contact refused");
 
+// text fields: a token for one person, opened by them through the bridge, refused for a stranger
+const tok = await S.handle("seal-text", { fp, text: "meet at noon", allowUnverified: true });
+ok(tok.ok && /^[\s\S]*hy1\./.test(tok.token), "seal-text returns a sealed token");
+const rd = await R.handle("open", { text: tok.token });
+ok(rd.ok && rd.items[0].ok && rd.items[0].authentic && rd.items[0].body === "meet at noon", "the connection opens the token and it is authentic");
+const sd = await X.handle("open", { text: tok.token });
+ok(!(sd.items && sd.items[0] && sd.items[0].ok), "a stranger gets nothing");
+// safety number: both sides see the same one, and the right typed number verifies
+const sn = await S.handle("safety", { fp });
+ok(sn.ok && typeof sn.number === "string", "safety number by fingerprint");
+const bad = await S.handle("safety-confirm", { fp, typed: "000000" });
+ok(!bad.ok, "a wrong number does not verify");
+
 console.log("file-to-person:", pass, "passed,", fail, "failed");
 process.exit(fail ? 1 : 0);

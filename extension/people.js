@@ -76,8 +76,32 @@
       var row = document.createElement("div"); row.className = "who";
       var a = document.createElement("span"); a.textContent = (p.name || (p.emails && p.emails[0]) || "someone");
       var b = document.createElement("span"); b.className = "dim"; b.textContent = p.status || "";
-      row.appendChild(a); row.appendChild(b); box.appendChild(row);
+      row.appendChild(a); row.appendChild(b);
+      if (p.status === "unverified") {
+        var v = document.createElement("button"); v.textContent = "Verify"; v.style.margin = "0 0 0 8px";
+        v.addEventListener("click", function () { verify(p, row); });
+        row.appendChild(v);
+      }
+      box.appendChild(row);
     });
+  }
+  /** Safety number: read yours to them, type what they read to you. A match proves it is them. */
+  async function verify(p, row) {
+    var s = await call("safety", { fp: p.fp });
+    if (!s.ok) return;
+    var panel = document.createElement("div"); panel.className = "out"; panel.style.flexBasis = "100%";
+    panel.textContent = "Your safety number with this person:\n\n" + s.number +
+      "\n\nCall or meet them. Read this to them, and have them read theirs to you; type theirs below.";
+    var inp = document.createElement("input"); inp.placeholder = "the number they read to you"; inp.style.marginTop = "8px";
+    var go = document.createElement("button"); go.textContent = "Confirm"; go.className = "p";
+    var msg = document.createElement("div"); msg.style.marginTop = "6px";
+    go.addEventListener("click", async function () {
+      var r = await call("safety-confirm", { fp: p.fp, typed: inp.value });
+      if (r.ok) { msg.className = "ok"; msg.textContent = "Verified."; refresh(); }
+      else { msg.className = "warn"; msg.textContent = "That doesn't match. If you typed it right, don't trust this connection."; }
+    });
+    panel.appendChild(inp); panel.appendChild(go); panel.appendChild(msg);
+    row.style.flexWrap = "wrap"; row.appendChild(panel);
   }
   refresh();
 })();

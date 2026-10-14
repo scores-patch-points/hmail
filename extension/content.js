@@ -160,6 +160,38 @@
 
   // ---- seal -----------------------------------------------------------------
 
+  function inviteCall(op, args) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage({ hyphae: "invite", op: op, args: args || {} }, function (r) {
+          void chrome.runtime.lastError; resolve(r || { ok: false, reason: "no-answer" });
+        });
+      } catch (e) { resolve({ ok: false, reason: "no-answer" }); }
+    });
+  }
+  /** One sealed token: for the person chosen in the popup, or under your own circle. */
+  async function sealText(circle, plain) {
+    var to = null;
+    try { to = (await chrome.storage.local.get("sealTo")).sealTo || null; } catch (e) { /* just you */ }
+    if (!to) return HyCrypto.seal(circle, plain);
+    var r = await inviteCall("seal-text", { fp: to, text: plain });
+    if (!r.ok) {
+      throw new Error(r.reason === "unverified" ? "That person isn't verified yet. Confirm their safety number on the People page." : "Couldn't seal to that person (" + r.reason + ").");
+    }
+    return r.token;
+  }
+  /** Tokens your own circles couldn't open may be from a connection: the worker holds those keys. */
+  async function openFromConnections(segs) {
+    for (var i = 0; i < segs.length; i++) {
+      var sg = segs[i];
+      if (!sg.token || sg.plain !== null) continue;
+      var r = await inviteCall("open", { text: sg.token });
+      var it = r.ok && r.items && r.items[0];
+      if (it && it.ok && it.authentic && typeof it.body === "string") sg.plain = it.body;
+    }
+    return segs;
+  }
+
   /** Seal the selection in the focused field, or the whole field. */
   async function sealFocused(circle) {
     var el = focusedElement();
@@ -176,7 +208,7 @@
       var start = hasSel ? s : 0, end = hasSel ? e : value.length;
       var plain = value.slice(start, end);
       if (!plain.trim()) return { ok: false, reason: "Nothing to seal in that field." };
-      var token = await HyCrypto.seal(circle, plain);
+      var token = await sealText(circle, plain);
       setInputValue(el, value.slice(0, start) + token + value.slice(end));
       showInspector(plain, token);
       if (!userChose && !secure) setSecure("on");
@@ -190,7 +222,7 @@
       if (!inside) doc.execCommand("selectAll", false, null);
       var text = doc.getSelection().toString();
       if (!text.trim()) return { ok: false, reason: "Nothing to seal in that field." };
-      var tok = await HyCrypto.seal(circle, text);
+      var tok = await sealText(circle, text);
       // insertText keeps the editor's own undo stack and change events intact.
       if (!doc.execCommand("insertText", false, tok)) {
         return { ok: false, reason: "This editor wouldn't accept the sealed text." };
@@ -336,7 +368,7 @@
   async function revealNode(textNode, circlesByKid, stats) {
     var text = textNode.nodeValue;
     if (!text || text.indexOf("~") === -1 || !HyCrypto.hasToken(text)) return;
-    var segs = await HyCrypto.revealSegments(text, circlesByKid);
+    var segs = await openFromConnections(await HyCrypto.revealSegments(text, circlesByKid));
     var opened = segs.filter(function (s) { return s.token && s.plain !== null; }).length;
     stats.locked += segs.filter(function (s) { return s.token && s.plain === null; }).length;
     if (!opened || !textNode.parentNode || textNode.nodeValue !== text) return;
@@ -387,7 +419,7 @@
       if (end === -1) continue;
       var joined = parts.join("");
       if (!HyCrypto.hasToken(joined)) continue;
-      var segs = await HyCrypto.revealSegments(joined, circlesByKid);
+      var segs = await openFromConnections(await HyCrypto.revealSegments(joined, circlesByKid));
       var seg = segs.filter(function (s) { return s.token; })[0];
       if (!seg) continue;
       if (seg.plain === null) { stats.locked++; continue; }

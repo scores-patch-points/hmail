@@ -33,6 +33,7 @@
     "safety",          // {addr}                             -> {ok, number}
     "safety-confirm",  // {addr, typed}                      -> {ok, status} | {ok:false, reason}
     "alarms",          // {}                                 -> {ok, alarms:[...]}
+    "seal-text",       // {fp|to, text, allowUnverified?}    -> {ok, token} | {ok:false, reason}   (one sealed token for a field)
     "seal-file",       // {fp|to, b64, meta}                 -> {ok, b64} | {ok:false, reason}   (Drive HYD1 under that contact's circle)
     "open-file",       // {b64}                              -> {ok, b64, meta, fp, via} | {ok:false, reason}
     "directory",       // {q?}                               -> {ok, people:[{name, emails, status, via}]}
@@ -190,17 +191,32 @@
       },
 
       "safety": async function (a, args) {
-        var cf = a.contactForAddress(String(args.addr || ""));
-        if (!cf.contact) return { ok: false, reason: "unknown-contact" };
-        return { ok: true, number: await a.safetyNumber(cf.contact.fp) };
+        var fp = typeof args.fp === "string" && a.state.contacts[args.fp] ? args.fp : null;
+        if (!fp) { var cf = a.contactForAddress(String(args.addr || "")); fp = cf.contact ? cf.contact.fp : null; }
+        if (!fp) return { ok: false, reason: "unknown-contact" };
+        return { ok: true, number: await a.safetyNumber(fp) };
       },
 
       "safety-confirm": async function (a, args) {
-        var cf = a.contactForAddress(String(args.addr || ""));
-        if (!cf.contact) return { ok: false, reason: "unknown-contact" };
-        var r = await a.confirmSafetyNumber(cf.contact.fp, String(args.typed || "").slice(0, 80));
+        var fp = typeof args.fp === "string" && a.state.contacts[args.fp] ? args.fp : null;
+        if (!fp) { var cf = a.contactForAddress(String(args.addr || "")); fp = cf.contact ? cf.contact.fp : null; }
+        if (!fp) return { ok: false, reason: "unknown-contact" };
+        var r = await a.confirmSafetyNumber(fp, String(args.typed || "").slice(0, 80));
         await save(a);
         return r.ok ? { ok: true, status: r.status } : { ok: false, reason: r.reason };
+      },
+
+      "seal-text": async function (a, args) {
+        var c = null;
+        if (typeof args.fp === "string" && a.state.contacts[args.fp]) c = a.state.contacts[args.fp];
+        else if (typeof args.to === "string") { var cf = a.contactForAddress(args.to.toLowerCase()); c = cf.ambiguous ? null : cf.contact; }
+        if (!c || !c.circle) return { ok: false, reason: "not-connected" };
+        if (c.status === "unverified" && args.allowUnverified !== true) return { ok: false, reason: "unverified" };
+        var text = str(args.text, 400000);
+        if (!text) return { ok: false, reason: "nothing-to-seal" };
+        var token = await a.sealTo(c.fp || args.fp, text, { subject: "", allowUnverified: args.allowUnverified === true });
+        await save(a);
+        return { ok: true, token: token };
       },
 
       // Files. The page sends bytes and gets bytes: the contact's circle never leaves here.
