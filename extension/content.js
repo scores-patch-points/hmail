@@ -453,18 +453,18 @@
 
   // ---- secure mode ----------------------------------------------------------
   // One switch. ON: you see the message, new text is sealed, and the whole page
-  // carries a calm "this is protected" look. OFF: the page exactly as the site
+  // carries the hyphae "this is encrypted" look (lavender frame, a top tab, lavender focus rings). OFF: the page exactly as the site
   // delivered it, with none of our styling. The look is deliberately quiet — a
   // thin frame, a barely-there tint, green carets, selections and focus rings —
   // and it never captures a click (pointer-events:none, closed shadow root).
 
   var FIELD_CSS =
-    "html{accent-color:#059669}" +
-    "::selection{background:rgba(16,185,129,.28)}" +
-    "textarea,input[type=text],input[type=email],input[type=search],input:not([type]),[contenteditable=\"true\"],[contenteditable=\"\"]{caret-color:#059669}" +
+    "html{accent-color:#938bb2}" +
+    "::selection{background:rgba(147,139,178,.38)}" +
+    "textarea,input[type=text],input[type=email],input[type=search],input:not([type]),[contenteditable=\"true\"],[contenteditable=\"\"]{caret-color:#938bb2}" +
     "textarea:focus,input[type=text]:focus,input[type=email]:focus,input[type=search]:focus,input:not([type]):focus," +
     "[contenteditable=\"true\"]:focus,[contenteditable=\"\"]:focus{" +
-    "outline:2px solid rgba(16,185,129,.7)!important;outline-offset:1px!important}";
+    "outline:2px solid rgba(147,139,178,.85)!important;outline-offset:1px!important;box-shadow:0 0 0 4px rgba(147,139,178,.18)!important}";
 
   function applyFieldStyle(on) {
     try {
@@ -488,12 +488,16 @@
     var shadow = host.attachShadow({ mode: "closed" });
     var style = document.createElement("style");
     style.textContent =
-      ".f{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;background:rgba(16,185,129,.022);" +
-      "box-shadow:inset 0 0 0 2px rgba(16,185,129,.5),inset 0 0 70px rgba(16,185,129,.08);animation:in .5s ease-out}" +
+      ".f{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;background:rgba(147,139,178,.045);" +
+      "box-shadow:inset 0 0 0 3px rgba(147,139,178,.7),inset 0 0 90px rgba(120,106,190,.18);animation:in .5s ease-out}" +
+      ".t{position:absolute;top:0;left:50%;transform:translateX(-50%);padding:3px 14px 4px;border-radius:0 0 12px 12px;" +
+      "background:#1b1d28;color:#c9bff0;border:1px solid #4d4a6e;border-top:0;" +
+      "font:300 10px/1.2 'Helvetica Neue',system-ui,sans-serif;letter-spacing:.28em;text-transform:uppercase;white-space:nowrap}" +
       "@keyframes in{from{opacity:0}to{opacity:1}}" +
       "@media (prefers-reduced-motion:reduce){.f{animation:none}}";
     var f = document.createElement("div"); f.className = "f";
-    shadow.appendChild(style); shadow.appendChild(f);
+    var t = document.createElement("div"); t.className = "t"; t.textContent = "hyphae \u00b7 encrypted";
+    shadow.appendChild(style); shadow.appendChild(f); shadow.appendChild(t);
     (document.body || document.documentElement).appendChild(host);
     frame = { host: host };
   }

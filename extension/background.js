@@ -154,7 +154,7 @@ async function autoState() {
 
 async function registerAuto() {
   var s = await autoState();
-  try { await chrome.scripting.unregisterContentScripts({ ids: [AUTO_ID] }); } catch (e) { /* not registered */ }
+  try { await chrome.scripting.unregisterContentScripts({ ids: [AUTO_ID, "hyphae-watch"] }); } catch (e) { /* not registered */ }
   if (!s.on) return;
   var has = await chrome.permissions.contains({ origins: ["<all_urls>"] });
   if (!has) return;
@@ -163,8 +163,18 @@ async function registerAuto() {
     id: AUTO_ID,
     matches: ["<all_urls>"],
     excludeMatches: exclude,
-    js: ["crypto.js", "content.js", "gmail.js", "drive/hash.js", "drive/seal.js", "drive-page.js", "auto.js"],
+    js: ["tripwire.js", "crypto.js", "content.js", "gmail.js", "drive/hash.js", "drive/seal.js", "drive-page.js", "auto.js"],
     runAt: "document_idle",
+    allFrames: false,
+    persistAcrossSessions: true,
+  }, {
+    // The tripwire's page half: the page's own world, before its scripts, observing only.
+    id: "hyphae-watch",
+    matches: ["<all_urls>"],
+    excludeMatches: exclude,
+    js: ["watch.js"],
+    runAt: "document_start",
+    world: "MAIN",
     allFrames: false,
     persistAcrossSessions: true,
   }]);
@@ -295,7 +305,9 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
   if (msg.hyphae === "get-circles") {
     if (sender.id !== chrome.runtime.id || !sender.tab || !sender.tab.url) { send({ circles: null }); return; }
     (async function () {
-      if (!(await chrome.storage.local.get("matrixUser")).matrixUser) return send({ circles: null, signedOut: true });
+      var gate = await chrome.storage.local.get(["matrixUser", "browser"]);
+      if (gate.browser && gate.browser.ok === false) return send({ circles: null, blocked: true });
+      if (!gate.matrixUser) return send({ circles: null, signedOut: true });
       var s = await autoState();
       var host = "";
       try { host = new URL(sender.tab.url).hostname.toLowerCase(); } catch (e) { /* ignore */ }
@@ -389,5 +401,54 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
     if (u && u.available) chrome.tabs.create({ url: chrome.runtime.getURL("update.html?auto=1"), active: false });
     send(u);
   }, function () { send(null); });
+  return true;
+});
+
+// Account page (account.html) signed in: make the personal circle if there is none.
+// Also lets the Drive page ask for the sign-in screen.
+chrome.runtime.onMessage.addListener(function (msg, sender, send) {
+  if (!msg) return;
+  if (msg.hyphae === "session-local") {
+    if (sender.id !== chrome.runtime.id || sender.tab) return;
+    (async function () {
+      var st = await circlesByKid();
+      if (!Object.keys(st.circles).length) {
+        var c = HyCrypto.newCircle("Personal");
+        st.circles[c.kid] = c;
+        await chrome.storage.local.set({ circles: st.circles, active: c.kid });
+      }
+      send({ ok: true });
+    })();
+    return true;
+  }
+  if (msg.hyphae === "open-account") {
+    if (sender.id !== chrome.runtime.id) return;
+    chrome.tabs.create({ url: chrome.runtime.getURL("account.html?tab=1") });
+    return;
+  }
+});
+
+// Browser policy. hyphae runs only in browsers that don't send what you do to Google,
+// Microsoft or similar. This is a denylist on the browser's own brand list, because a
+// browser can't be proven private from inside an extension; Brave is recognised by the
+// account page (navigator.brave) and always passes. Unknown Chromium builds pass.
+var BLOCKED_BRANDS = ["Google Chrome", "Microsoft Edge", "Opera", "Opera GX", "Yandex", "Samsung Internet"];
+async function browserPolicy() {
+  var brands = [];
+  try { brands = (navigator.userAgentData && navigator.userAgentData.brands || []).map(function (b) { return b.brand; }); } catch (e) { /* none */ }
+  var d = await chrome.storage.local.get("browserBrave");
+  var brave = d.browserBrave === true || brands.indexOf("Brave") !== -1;
+  var hit = brands.filter(function (b) { return BLOCKED_BRANDS.indexOf(b) !== -1; })[0] || null;
+  var ok = brave || !hit;
+  await chrome.storage.local.set({ browser: { ok: ok, name: hit || (brave ? "Brave" : "Chromium") } });
+  return ok;
+}
+chrome.runtime.onInstalled.addListener(browserPolicy);
+chrome.runtime.onStartup.addListener(browserPolicy);
+browserPolicy();
+chrome.runtime.onMessage.addListener(function (msg, sender, send) {
+  if (!msg || msg.hyphae !== "browser-brave") return;
+  if (sender.id !== chrome.runtime.id || sender.tab) return;
+  chrome.storage.local.set({ browserBrave: msg.brave === true }).then(browserPolicy).then(function () { send({ ok: true }); });
   return true;
 });

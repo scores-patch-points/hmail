@@ -270,12 +270,19 @@
   });
 
   chrome.storage.local.get("matrixUser", function (d) {
-    if (d && d.matrixUser) return;
-    document.body.classList.add("locked");
-    $("gate").style.display = "block";
-    $("gateOpen").addEventListener("click", function () {
-      chrome.tabs.create({ url: "https://mail.hyphae.social/app/" });
-    });
+    if (d && d.matrixUser) {
+      $("who").textContent = d.matrixUser;
+      $("signOut").addEventListener("click", async function () {
+        var t = (await chrome.storage.local.get("matrixToken")).matrixToken;
+        try {
+          if (t) await fetch("https://hyphae.social/_matrix/client/v3/logout", { method: "POST", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: "{}", credentials: "omit" });
+        } catch (e) { /* signed out here regardless */ }
+        await chrome.storage.local.remove(["matrixUser", "matrixToken", "matrixDevice"]);
+        location.replace("account.html");
+      });
+      return;
+    }
+    location.replace("account.html");
   });
 
   load();

@@ -27,14 +27,13 @@
       #update { display: none; margin: 0 0 12px; padding: 8px 10px; border: 1px solid #5a46a8; border-radius: 8px; font-size: 12px; }
       #update code { font: 11px ui-monospace, Menlo, monospace; }
       .power input { accent-color: #5a46a8; width: 16px; height: 16px; }
-          body.locked > *:not(h1):not(#gate) { display: none !important; }
-    </style>
+        </style>
   </head>
   <body>
     <h1>hyphae</h1>
-    <div id="gate" style="display:none;margin:10px 0;padding:10px;border:1px solid #5a46a8;border-radius:8px;font-size:12px">
-      <div>Sign in to hyphae with your Matrix account to seal or open anything.</div>
-      <div class="row"><button id="gateOpen">Open hyphae</button></div>
+    <div class="note" style="margin:0 0 8px;display:flex;justify-content:space-between;gap:8px;align-items:center">
+      <span id="who" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <button id="signOut">Sign out</button>
     </div>
     <p class="sub">Seal what you write, on any site.</p>
 

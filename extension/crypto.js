@@ -77,6 +77,7 @@
   }
 
   async function seal(circle, plaintext) {
+    try { if (typeof self !== "undefined" && self.__hyphaeTripNote) self.__hyphaeTripNote(plaintext); } catch (e) { /* tripwire is advisory */ }
     var iv = rand(12);
     var key = await importKey(circle);
     var ct = new Uint8Array(await webcrypto.subtle.encrypt(

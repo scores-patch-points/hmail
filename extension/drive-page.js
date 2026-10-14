@@ -27,7 +27,7 @@
   var FONT = "'Helvetica Neue','SF Pro Display',ui-sans-serif,system-ui,sans-serif";
   var NAME_RE = /^hy-[a-z2-7]{24}\.hyd$/;
   var BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
-  var on = false, signedIn = false, circle = null, askFirst = true, log = [], dock = null;
+  var on = false, signedIn = false, blocked = "", circle = null, askFirst = true, log = [], dock = null;
   var names = {};                       // opaque name -> real name, kept in extension storage when there is one
   var swapped = new Map();              // text node -> the text Drive had there
   var sealedFiles = (typeof WeakSet === "function") ? new WeakSet() : null;
@@ -300,12 +300,13 @@
     var o = overlayRoot(); clearOverlay();
     var veil = el("div", "veil"), card = el("div", "card");
     card.appendChild(el("div", "word", "hyphae"));
-    card.appendChild(el("h2", "", "Sign in to hyphae first"));
-    card.appendChild(el("div", "sub", "hyphae seals and opens files only while you are signed in with your Matrix account. Sign in, then come back here."));
+    card.appendChild(el("h2", "", blocked ? "hyphae doesn't run in " + blocked : "Sign in to hyphae first"));
+    if (blocked) card.appendChild(el("div", "sub", "hyphae only runs in browsers that don't share what you do with Google, Microsoft or similar. Use Brave or another privacy browser."));
+    else card.appendChild(el("div", "sub", "hyphae seals and opens files only while you are signed in. Sign in, then come back here."));
     var row = el("div", "row"); row.appendChild(el("span", "grow"));
-    var no = el("button", "", "Not now"), go = el("button", "p", "Open hyphae");
+    var no = el("button", "", "Not now"), go = el("button", "p", "Sign in");
     no.addEventListener("click", closeOverlay);
-    go.addEventListener("click", function () { window.open("https://mail.hyphae.social/app/", "_blank", "noopener"); closeOverlay(); });
+    go.addEventListener("click", function () { try { chrome.runtime.sendMessage({ hyphae: "open-account" }); } catch (e) { /* ignore */ } closeOverlay(); });
     row.appendChild(no); row.appendChild(go); card.appendChild(row);
     veil.appendChild(card); o.slot.appendChild(veil);
   }
@@ -617,7 +618,8 @@
     dock.key = key;
     dock.btn.className = "btn" + (on ? " on" : "");
     dock.sw.className = "sw" + (on ? " on" : "");
-    if (!signedIn) { dock.st.textContent = "Signed out: sign in to hyphae with Matrix to use it"; dock.sub.textContent = "Open mail.hyphae.social/app and sign in"; }
+    if (blocked) { dock.st.textContent = "Off: not available in " + blocked; dock.sub.textContent = "Use Brave or another privacy browser"; }
+    else if (!signedIn) { dock.st.textContent = "Signed out: sign in to hyphae to use it"; dock.sub.textContent = "Click the hyphae icon in the toolbar to sign in"; }
     else dock.st.textContent = on ? "On: sealing uploads, showing real names" : "Off: Drive gets and shows files as they are";
     if (signedIn) dock.sub.textContent = circle ? ("Just you · Google Docs, Sheets and Slides can't be sealed") : "No circle yet — add one in hyphae";
     while (dock.lg.firstChild) dock.lg.removeChild(dock.lg.firstChild);
@@ -627,8 +629,9 @@
   function loadState(cb) {
     try {
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(["circles", "active", "driveSeal", "driveNames", "matrixUser"], function (d) {
-          signedIn = !!(d && d.matrixUser);
+        chrome.storage.local.get(["circles", "active", "driveSeal", "driveNames", "matrixUser", "browser"], function (d) {
+          blocked = (d && d.browser && d.browser.ok === false) ? d.browser.name : "";
+          signedIn = !!(d && d.matrixUser) && !blocked;
           var cs = (d && d.circles) || {};
           var kid = (d && d.active && cs[d.active]) ? d.active : Object.keys(cs)[0];
           circle = (kid && signedIn) ? cs[kid] : null;
@@ -662,7 +665,7 @@
   };
   try {
     chrome.storage.onChanged.addListener(function (ch, area) {
-      if (area !== "local" || !ch.matrixUser) return;
+      if (area !== "local" || !(ch.matrixUser || ch.browser)) return;
       loadState(function () { if (!signedIn) on = false; swapNow(); paint(true); });
     });
   } catch (e) { /* no live follow */ }
