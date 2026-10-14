@@ -52,6 +52,30 @@
   }
   function human(n) { return n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB"; }
 
+
+  // ---- sealing to a connected person ------------------------------------------------------
+  // The person's circle never reaches this page: bytes go to the worker and sealed bytes come
+  // back. Only your personal circle is sealed here.
+  function inviteCall(op, args) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage({ hyphae: "invite", op: op, args: args || {} }, function (r) {
+          void chrome.runtime.lastError; resolve(r || { ok: false, reason: "no-answer" });
+        });
+      } catch (e) { resolve({ ok: false, reason: "no-answer" }); }
+    });
+  }
+  function toB64(u8) {
+    var s = ""; for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function fromB64(b) { var bin = atob(b), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  var people = [];
+  function loadPeople() {
+    return inviteCall("directory", {}).then(function (r) { people = (r && r.ok && r.people) || []; });
+  }
+  var sealTo = null;      // fp of the person this batch is sealed for, or null for just you
+
   // ---- names ------------------------------------------------------------------------------
   function saveNames() {
     try { if (chrome && chrome.storage && chrome.storage.local) chrome.storage.local.set({ driveNames: names }); } catch (e) { /* memory only */ }
@@ -59,12 +83,20 @@
   function remember(opaque, real) { names[opaque] = real; saveNames(); swapNow(); }
 
   /** One file in, one sealed File out. The real name travels inside the sealed bytes. */
-  async function sealFile(file, keepName) {
+  async function sealFile(file, keepName, toFp) {
     var bytes = new Uint8Array(await file.arrayBuffer());
-    var sealed = await Seal.sealBytes(circle, bytes, {
-      name: file.name, mime: file.type || "application/octet-stream", size: bytes.length,
-      mtime: file.lastModified || Date.now(), id: "upload", path: null,
-    });
+    var who = toFp !== undefined ? toFp : sealTo;
+    var sealed;
+    if (who) {
+      var r = await inviteCall("seal-file", { fp: who, b64: toB64(bytes), meta: { name: file.name, mime: file.type, mtime: file.lastModified } });
+      if (!r.ok) throw new Error(r.reason === "unverified" ? "That person isn't verified yet — confirm their safety number on the People page." : "Couldn't seal to that person (" + r.reason + ").");
+      sealed = fromB64(r.b64);
+    } else {
+      sealed = await Seal.sealBytes(circle, bytes, {
+        name: file.name, mime: file.type || "application/octet-stream", size: bytes.length,
+        mtime: file.lastModified || Date.now(), id: "upload", path: null,
+      });
+    }
     var out = new File([sealed], keepName || opaqueName(), { type: "application/octet-stream", lastModified: Date.now() });
     if (sealedFiles) sealedFiles.add(out);
     remember(out.name, file.name);
@@ -210,11 +242,25 @@
       });
       if (files.length > 20) list.appendChild(el("div", "f", "and " + (files.length - 20) + " more"));
       card.appendChild(list);
+      var pick = null;
+      if (people.length) {
+        var pl = el("label", "chk"); pl.style.marginTop = "10px";
+        pl.appendChild(document.createTextNode("Who can open it: "));
+        pick = document.createElement("select");
+        pick.style.cssText = "margin-left:6px;background:#171925;color:#cfc8ec;border:1px solid #313140;border-radius:8px;padding:3px 6px;font:inherit";
+        var me = document.createElement("option"); me.value = ""; me.textContent = "Just me"; pick.appendChild(me);
+        people.forEach(function (p) {
+          var o = document.createElement("option"); o.value = p.fp;
+          o.textContent = "Me and " + (p.name || (p.emails && p.emails[0]) || "a contact") + (p.status === "unverified" ? " (unverified)" : "");
+          pick.appendChild(o);
+        });
+        pl.appendChild(pick); card.appendChild(pl);
+      }
       var row = el("div", "row");
       var lab = el("label", "chk"); var cb = el("input"); cb.type = "checkbox";
       lab.appendChild(cb); lab.appendChild(document.createTextNode("Don't ask again on this page"));
       row.appendChild(lab); row.appendChild(el("span", "grow"));
-      function done(v) { document.removeEventListener("keydown", onKey, true); if (cb.checked && v === "seal") askFirst = false; resolve(v); }
+      function done(v) { document.removeEventListener("keydown", onKey, true); if (cb.checked && v === "seal") askFirst = false; sealTo = (pick && pick.value) || null; resolve(v); }
       var no = el("button", "", "Cancel"), plain = el("button", "", "Upload as is"), yes = el("button", "p", "Encrypt with hyphae");
       no.addEventListener("click", function () { done("cancel"); });
       plain.addEventListener("click", function () { done("plain"); });
@@ -451,7 +497,15 @@
     try {
       var sealed = await fetchSealed(hit.id);
       if (sealed.length > MAX_OPEN) return fail("This file is larger than hyphae opens in the page (32 MB).");
-      var opened = await Seal.openBytes([circle], sealed);
+      var opened, viaFp = null;
+      try { opened = await Seal.openBytes([circle], sealed); }
+      catch (e0) {
+        if (!e0 || e0.code !== "no-key") throw e0;
+        var wr = await inviteCall("open-file", { b64: toB64(sealed) });
+        if (!wr.ok) throw new Error("This file is sealed to a circle you don't hold" + (wr.reason ? " (" + wr.reason + ")" : "") + ".");
+        opened = { meta: wr.meta, bytes: fromB64(wr.b64) };
+        viaFp = wr.fp;
+      }
       var meta = opened.meta || {}, plain = opened.data || opened.bytes;
       if (!plain) throw new Error("the sealed file has no content");
       remember(hit.opaque, meta.name || hit.opaque);
@@ -479,7 +533,7 @@
           save.disabled = true;
           try {
             var edited = new File([area.value], meta.name || "file.txt", { type: mime, lastModified: Date.now() });
-            var res = await sealFile(edited, hit.opaque);
+            var res = await sealFile(edited, hit.opaque, viaFp);
             if (url) URL.revokeObjectURL(url);
             close();
             handToDrive(res.out);
@@ -669,5 +723,5 @@
       loadState(function () { if (!signedIn) on = false; swapNow(); paint(true); });
     });
   } catch (e) { /* no live follow */ }
-  loadState(function () { paint(true); swapNow(); setInterval(function () { paint(false); }, 1000); });
+  loadPeople(); loadState(function () { paint(true); swapNow(); setInterval(function () { paint(false); }, 1000); });
 })();

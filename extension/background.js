@@ -1,6 +1,6 @@
 // Hyphae worker: keyboard shortcuts, circles arriving from the hub, and the
 // activity ledger. Shortcuts count as a user gesture, so activeTab grants one tab.
-importScripts("crypto.js", "ledger-core.js", "contacts/core.js", "invite/p256.js", "invite/spake2.js", "invite/hyinvite.js", "invite-bridge.js", "release-key.js");
+importScripts("crypto.js", "ledger-core.js", "contacts/core.js", "invite/p256.js", "invite/spake2.js", "invite/hyinvite.js", "invite-bridge.js", "release-key.js", "drive/hash.js", "drive/seal.js");
 
 var storage = {
   get: async function (k) { return (await chrome.storage.local.get(k))[k]; },
@@ -235,7 +235,7 @@ chrome.runtime.onStartup.addListener(function () { registerAuto(); setMark(false
 
 // The invite flow (invite/hyinvite.js through invite-bridge.js). The identity keys and
 // every pair key live only here; pages ask by message and get text and plain objects.
-var inviteBridge = HyInviteBridge.create({ HyInvite: HyInvite, storage: storage });
+var inviteBridge = HyInviteBridge.create({ HyInvite: HyInvite, storage: storage, DriveSeal: self.HyDriveSeal });
 
 // The contacts directory (contacts/core.js). Pages ask it by message and get a
 // status back — never a key. It is told which circles are held by id only.

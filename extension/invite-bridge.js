@@ -33,11 +33,14 @@
     "safety",          // {addr}                             -> {ok, number}
     "safety-confirm",  // {addr, typed}                      -> {ok, status} | {ok:false, reason}
     "alarms",          // {}                                 -> {ok, alarms:[...]}
+    "seal-file",       // {fp|to, b64, meta}                 -> {ok, b64} | {ok:false, reason}   (Drive HYD1 under that contact's circle)
+    "open-file",       // {b64}                              -> {ok, b64, meta, fp, via} | {ok:false, reason}
     "directory",       // {q?}                               -> {ok, people:[{name, emails, status, via}]}
   ];
 
   function create(opts) {
     var HI = opts.HyInvite;
+    var DS = opts.DriveSeal || null;
     var key = opts.key || "invite";
     var agentP = null;
     var queue = Promise.resolve();
@@ -58,6 +61,14 @@
       return agentP;
     }
 
+    function b64ToBytes(b) {
+      if (typeof b !== "string") return null;
+      try { var bin = atob(b), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; } catch (e) { return null; }
+    }
+    function bytesToB64(u) {
+      var s = ""; for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+      return btoa(s);
+    }
     function addrOk(a) { return typeof a === "string" && a.length < 255 && /^[^\s@]+@[^\s@]+$/.test(a); }
     function str(v, max) { return typeof v === "string" && v.length <= max ? v : null; }
 
@@ -192,6 +203,41 @@
         return r.ok ? { ok: true, status: r.status } : { ok: false, reason: r.reason };
       },
 
+      // Files. The page sends bytes and gets bytes: the contact's circle never leaves here.
+      "seal-file": async function (a, args) {
+        if (!DS) return { ok: false, reason: "unavailable" };
+        var c = null;
+        if (typeof args.fp === "string" && a.state.contacts[args.fp]) c = a.state.contacts[args.fp];
+        else if (typeof args.to === "string") { var cf = a.contactForAddress(args.to.toLowerCase()); c = cf.ambiguous ? null : cf.contact; }
+        if (!c || !c.circle) return { ok: false, reason: "not-connected" };
+        if (c.status === "unverified" && args.allowUnverified !== true) return { ok: false, reason: "unverified" };
+        var bytes = b64ToBytes(str(args.b64, 60000000));
+        if (!bytes) return { ok: false, reason: "bad-bytes" };
+        var meta = args.meta && typeof args.meta === "object" ? args.meta : {};
+        var sealed = await DS.sealBytes(c.circle, bytes, {
+          name: String(meta.name || "file").slice(0, 255), mime: String(meta.mime || "application/octet-stream").slice(0, 120),
+          size: bytes.length, mtime: Number(meta.mtime) || Date.now(), id: "upload", path: null,
+        });
+        return { ok: true, b64: bytesToB64(sealed) };
+      },
+
+      "open-file": async function (a, args) {
+        if (!DS) return { ok: false, reason: "unavailable" };
+        var bytes = b64ToBytes(str(args.b64, 60000000));
+        if (!bytes) return { ok: false, reason: "bad-bytes" };
+        var circles = [], owner = {};
+        Object.keys(a.state.contacts).forEach(function (fp) {
+          var cc = a.state.contacts[fp].circle;
+          if (cc) { circles.push(cc); owner[cc.kid] = fp; }
+        });
+        if (!circles.length) return { ok: false, reason: "no-circle" };
+        try {
+          var o = await DS.openBytes(circles, bytes);
+          var used = o.manifest && o.manifest.kid;
+          return { ok: true, b64: bytesToB64(o.bytes), meta: o.meta || {}, fp: used && owner[used] ? owner[used] : null };
+        } catch (e) { return { ok: false, reason: (e && e.code) || "cannot-open" }; }
+      },
+
       "directory": async function (a, args) {
         var q = typeof args.q === "string" ? args.q.toLowerCase().slice(0, 100) : "";
         var people = [];
@@ -203,7 +249,7 @@
           var emails = (c.addresses || []).slice();
           var hay = (name + " " + emails.join(" ")).toLowerCase();
           if (q && hay.indexOf(q) === -1) return;
-          people.push({ name: name, emails: emails, status: c.status === "unverified" ? "unverified" : "connected", via: "invite" });
+          people.push({ fp: fp, name: name, emails: emails, status: c.status === "unverified" ? "unverified" : "connected", via: "invite" });
         });
         return { ok: true, people: people };
       },
