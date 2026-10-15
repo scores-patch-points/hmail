@@ -149,7 +149,8 @@ var AUTO_ID = "hyphae-auto";
 
 async function autoState() {
   var d = await chrome.storage.local.get(["everySite", "offSites"]);
-  return { on: d.everySite === true, off: Array.isArray(d.offSites) ? d.offSites : [] };
+  // On by default: hyphae runs on every site unless the person turns it off.
+  return { on: d.everySite !== false, off: Array.isArray(d.offSites) ? d.offSites : [] };
 }
 
 async function registerAuto() {

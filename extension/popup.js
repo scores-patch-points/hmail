@@ -215,16 +215,14 @@
     }
   });
 
-  // Every-site mode. The browser's permission prompt needs a click, so the
-  // request happens here; the worker does the registering.
+  // Every-site mode. On by default now (the host permission is required), so the
+  // page layer is registered for every site; the toggle is just an off switch.
   async function hostOf(tab) {
     try { return new URL(tab.url).hostname.toLowerCase(); } catch (e) { return ""; }
   }
   async function loadAuto() {
     var d = await chrome.storage.local.get(["everySite", "offSites"]);
-    var has = false;
-    try { has = await chrome.permissions.contains({ origins: ["<all_urls>"] }); } catch (e) { /* ignore */ }
-    $("everySite").checked = d.everySite === true && has;
+    $("everySite").checked = d.everySite !== false;
     var tab = await activeTab();
     var host = tab ? await hostOf(tab) : "";
     var off = Array.isArray(d.offSites) && host && d.offSites.indexOf(host) !== -1;
@@ -233,13 +231,7 @@
   }
   $("everySite").addEventListener("change", async function () {
     var want = $("everySite").checked;
-    if (want) {
-      var ok = false;
-      try { ok = await chrome.permissions.request({ origins: ["<all_urls>"] }); } catch (e) { ok = false; }
-      if (!ok) { $("everySite").checked = false; return say("Access to all sites wasn't granted.", "err"); }
-    }
     await chrome.runtime.sendMessage({ hyphae: "auto-set", on: want });
-    if (!want) { try { await chrome.permissions.remove({ origins: ["<all_urls>"] }); } catch (e) { /* ignore */ } }
     say(want ? "On: sealed text opens on any site as it loads." : "Off: hyphae only runs where you invoke it.", "ok");
   });
   $("siteOff").addEventListener("click", async function () {

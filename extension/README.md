@@ -4,8 +4,9 @@ A browser extension that encrypts text in **any field on any site** and decrypts
 your circle sealed, wherever it shows up. It is a layer, not an app: Gmail, a comment
 box, a chat, a form, a note — if it stores text, it can hold a sealed token.
 
-No Google OAuth, no API, no account with the site. It acts only when you ask it to, on the
-tab you ask it on (`activeTab`), and never touches password fields.
+No Google OAuth, no API, no account with the site. It runs on every site by default — seal
+with the popup or a shortcut, and it opens sealed text as pages load — and never touches
+password fields. (Turn the off switch in the popup to run only where you invoke it.)
 
 ## Try it (Brave / Chrome)
 

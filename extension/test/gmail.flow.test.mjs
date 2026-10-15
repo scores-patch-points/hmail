@@ -243,5 +243,24 @@ S.G().fill(k2, "x", "hello");
 const r3 = await S.G().sealOnly(k2);
 ok(r3 && r3.ok === false && r3.missing && r3.missing[0] === "someone@example.com", "unconnected third party refused");
 
+// ---- 8. THE REAL SEND CLICK (not sealOnly): the interception path itself ----
+// This is what a person actually does: fill the compose, press Gmail's Send.
+// If interception works, Gmail's fields hold ciphertext and no plaintext.
+S.openCompose(); await wait(700);
+const k3 = S.G().state().composes.length - 1;
+S.G().toggle(k3); await wait(100);
+S.G().pickTo(k3, "riley@example.com");
+S.G().fill(k3, "Friday plan", "TOP SECRET BODY");
+const dlg3 = S.d.querySelectorAll('div[role="dialog"]')[k3];
+const sendBtn = dlg3.querySelector('[role="button"][aria-label="Send"]');
+ok(!!sendBtn, "found Gmail's Send button");
+["mousedown", "mouseup", "click"].forEach(t =>
+  sendBtn.dispatchEvent(new S.w.MouseEvent(t, { bubbles: true, cancelable: true, view: S.w })));
+await wait(500);
+const sent = fieldsOf(dlg3);
+ok(sent.body.indexOf("hy1.") !== -1, "real Send click: Gmail's body holds a hy1 token");
+ok(sent.body.replace(/\s+/g, "").indexOf("TOPSECRETBODY") === -1, "real Send click: NO plaintext in Gmail's body");
+ok(sent.body.indexOf("Friday plan") === -1 && sent.subject === HI.SUBJECT_LABEL, "real Send click: real subject/body left Gmail's fields");
+
 console.log(`\ngmail flow: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

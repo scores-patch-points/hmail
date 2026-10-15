@@ -5,8 +5,8 @@
   "options_page": "update.html",
   "description": "Encrypt text in any field on any site, and read what your circle sealed. Keys stay on your device and travel to your circle over Matrix. The site never sees plaintext and you need no account with it.",
   "permissions": ["storage", "activeTab", "scripting", "alarms"],
+  "host_permissions": ["<all_urls>"],
   "optional_permissions": ["tabs"],
-  "optional_host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "hyphae",
     "default_popup": "popup.html"
