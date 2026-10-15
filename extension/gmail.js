@@ -1085,6 +1085,44 @@
       row.appendChild(smallBtn("Invite " + addr, function (b) { b.disabled = true; startInvite(st, addr); }));
     });
     bar.appendChild(row);
+    // The person may not want to wait to connect: let them send it as an ordinary
+    // Gmail message, in the clear. The label says so; nothing is hidden about it.
+    bar.appendChild(line("Send anyway leaves this message unencrypted."));
+    var row2 = rowOf();
+    row2.appendChild(smallBtn("Send anyway (unencrypted)", function (b) { b.disabled = true; void sendPlain(st); }));
+    bar.appendChild(row2);
+  }
+
+  /**
+   * Send what was typed as an ordinary, unencrypted Gmail message — the escape hatch
+   * when the recipients aren't connected yet. The text goes back into Gmail's own
+   * fields in the clear and Gmail's Send is pressed. hyphae adds nothing.
+   */
+  async function sendPlain(st) {
+    var send = sendButton(st.root);
+    var text = st.rte.innerText.replace(/\u200b/g, "");
+    var gs = subjectInput(st.root);
+    if (st.toActive) {
+      await putRecipients(st);
+      st.toActive = false;
+      st.toHost.style.display = "none";
+    }
+    if (gs) { gs.style.display = st.subDisplay || ""; setNative(gs, st.sub.value); }
+    st.sub.value = "";
+    st.sjHost.style.display = "none";
+    st.body.style.display = st.prevDisplay || "";
+    st.body.focus();
+    document.execCommand("selectAll", false, null);
+    document.execCommand("insertText", false, text);
+    while (st.rte.firstChild) st.rte.removeChild(st.rte.firstChild);
+    st.on = false;
+    paint(st);
+    if (!send) return;
+    bypass = true;
+    ["mousedown", "mouseup", "click"].forEach(function (t) {
+      send.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
+    });
+    setTimeout(function () { bypass = false; }, 600);
   }
 
   async function startInvite(st, addr) {

@@ -92,7 +92,12 @@
       ".k:first-child{margin-top:0}" +
       ".v{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all;white-space:pre-wrap}" +
       ".you{color:#cfc8ec}.them{color:#c9a06a}" +
-      ".pill{display:flex;gap:10px;align-items:center}";
+      ".pill{display:flex;gap:10px;align-items:center}" +
+      ".card.pill{padding:7px 9px;max-width:none}" +
+      ".dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:#8a8a9c}" +
+      ".lbl{font-size:11px;max-width:0;overflow:hidden;opacity:0;white-space:nowrap;" +
+      "transition:max-width .18s ease,opacity .18s ease}" +
+      ".card:hover .lbl,.card:focus-within .lbl{max-width:340px;opacity:1;margin-left:8px}";
     shadow.appendChild(style);
     (document.body || document.documentElement).appendChild(host);
     return { host: host, shadow: shadow };
@@ -100,16 +105,16 @@
 
   function showBadge() {
     if (badge && badge.host.isConnected) { paintBadge(); return; }
-    var w = floating("right:14px;bottom:14px;");
+    var w = floating("right:12px;bottom:12px;");
     var card = document.createElement("div");
     card.className = "card pill";
-    var label = document.createElement("span");
-    var mark = makeMark(label);
-    card.appendChild(label);
-    card.title = "Click to turn hyphae encryption on or off";
+    var dot = document.createElement("span"); dot.className = "dot";
+    var label = document.createElement("span"); label.className = "lbl";
+    card.appendChild(dot); card.appendChild(label);
+    card.title = "hyphae — click to turn encryption on or off";
     card.addEventListener("click", function () { userChose = true; setSecure("toggle"); });
     w.shadow.appendChild(card);
-    badge = { host: w.host, mark: mark, label: label };
+    badge = { host: w.host, dot: dot, label: label };
     paintBadge();
   }
   function paintBadge() {
@@ -117,14 +122,14 @@
     var n = records.filter(function (r) { return r.host.isConnected; }).length;
     var count = n ? " (" + n + ")" : "";
     if (secure && lens === "site") {
-      badge.mark.set(true, "#c9a06a");
-      badge.label.textContent = "hyphae · encryption on · peeking at the site's view" + count;
+      badge.dot.style.background = "#c9a06a";
+      badge.label.textContent = "hyphae · peeking at the site's view" + count;
     } else if (secure) {
-      badge.mark.set(true, "#c9bff0");
-      badge.label.textContent = "hyphae · encryption on · you see the message" + count;
+      badge.dot.style.background = "#c9bff0";
+      badge.label.textContent = "hyphae · encryption on" + count;
     } else {
-      badge.mark.set(false, "#8a8a9c");
-      badge.label.textContent = "hyphae · encryption off · the site's view" + count;
+      badge.dot.style.background = "#8a8a9c";
+      badge.label.textContent = "hyphae · encryption off" + count;
     }
   }
 

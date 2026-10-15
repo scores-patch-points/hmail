@@ -94,11 +94,29 @@ function makePerson(name, address) {
     return dlg;
   }
   d.querySelector('div[gh="cm"]').addEventListener("click", () => openCompose());
+  // Real UI lives in closed shadow roots; open them so the test can click the actual
+  // buttons a person clicks (the "Encrypt this message" switch).
+  w.Element.prototype.attachShadow = (function (orig) {
+    return function (init) { return orig.call(this, Object.assign({}, init, { mode: "open" })); };
+  })(w.Element.prototype.attachShadow);
   for (const code of SRC) w.eval(code);
   return { w, d, name, address, bridge, contacts, openCompose, main, G: () => w.__hyphaeGmail };
 }
 
 const compose = p => { const dlg = p.d.querySelector('div[role="dialog"]:last-of-type') || p.d.querySelector('div[role="dialog"]'); return dlg; };
+// Find a button by its visible text, descending through (now-open) shadow roots.
+function shadowButtons(root, text) {
+  const out = [];
+  const grab = (sr) => sr.querySelectorAll("button").forEach(b => {
+    if (text == null || b.textContent.trim() === text) out.push(b);
+  });
+  (function walk(node) {
+    if (node.shadowRoot) { grab(node.shadowRoot); walk(node.shadowRoot); }
+    (node.querySelectorAll ? node.querySelectorAll("*") : []).forEach(el => { if (el.shadowRoot) { grab(el.shadowRoot); walk(el.shadowRoot); } });
+  })(root);
+  return out;
+}
+const clickReal = (p, btn) => btn.dispatchEvent(new p.w.MouseEvent("click", { bubbles: true, cancelable: true, view: p.w }));
 const fieldsOf = dlg => ({
   to: Array.from(dlg.querySelectorAll("[email]")).map(n => n.getAttribute("email")),
   subject: dlg.querySelector('input[name="subjectbox"]').value,
@@ -242,6 +260,17 @@ S.G().pickTo(k2, "someone@example.com");
 S.G().fill(k2, "x", "hello");
 const r3 = await S.G().sealOnly(k2);
 ok(r3 && r3.ok === false && r3.missing && r3.missing[0] === "someone@example.com", "unconnected third party refused");
+// ---- 7b. "Send anyway": the escape hatch sends it as an ordinary message
+const dlg2 = S.d.querySelectorAll('div[role="dialog"]')[k2];
+const anyway = shadowButtons(dlg2, "Send anyway (unencrypted)")[0];
+ok(!!anyway, "the 'Send anyway' button is offered when a recipient isn't connected");
+clickReal(S, anyway);
+await wait(500);
+const plainOut = fieldsOf(dlg2);
+ok(plainOut.body.indexOf("hello") !== -1, "Send anyway put the plaintext into Gmail's body: " + JSON.stringify(plainOut.body));
+ok(plainOut.body.indexOf("hy1.") === -1, "Send anyway sent no ciphertext");
+ok(plainOut.to.indexOf("someone@example.com") !== -1, "Send anyway kept the recipient");
+ok(S.G().state().composes[k2].on === false, "the compose is back to ordinary after Send anyway");
 
 // ---- 8. THE REAL SEND CLICK (not sealOnly): the interception path itself ----
 // This is what a person actually does: fill the compose, press Gmail's Send.
@@ -261,6 +290,26 @@ const sent = fieldsOf(dlg3);
 ok(sent.body.indexOf("hy1.") !== -1, "real Send click: Gmail's body holds a hy1 token");
 ok(sent.body.replace(/\s+/g, "").indexOf("TOPSECRETBODY") === -1, "real Send click: NO plaintext in Gmail's body");
 ok(sent.body.indexOf("Friday plan") === -1 && sent.subject === HI.SUBJECT_LABEL, "real Send click: real subject/body left Gmail's fields");
+
+// ---- 9. the REAL "Encrypt this message" button (the switch a person clicks) --
+// The old tests called toggle() directly; this clicks the actual button in the
+// compose UI and checks the compose turns encrypted.
+S.openCompose(); await wait(700);
+const k4 = S.G().state().composes.length - 1;
+ok(S.G().state().composes[k4].on === false, "step 9: the new compose starts unencrypted");
+const dlg4 = S.d.querySelectorAll('div[role="dialog"]')[k4];
+const encByStrip = shadowButtons(dlg4, "Encrypt this message")[0];
+const encByTitle = shadowButtons(dlg4, "hyphae")[0];
+ok(!!(encByStrip || encByTitle), 'the "Encrypt this message" switch is present (strip or title bar)');
+clickReal(S, encByStrip || encByTitle);
+await wait(200);
+ok(S.G().state().composes[k4].on === true, 'clicking the switch turns the compose on');
+ok(S.G().ui(k4).state === "Encrypted", 'the hyphae line now reads "Encrypted": ' + JSON.stringify(S.G().ui(k4).state));
+// and it can be turned back off by the same switch
+const offBtn = shadowButtons(dlg4, "Turn off")[0] || shadowButtons(dlg4, "hyphae")[0];
+clickReal(S, offBtn);
+await wait(200);
+ok(S.G().state().composes[k4].on === false, "clicking again turns it back off");
 
 console.log(`\ngmail flow: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
