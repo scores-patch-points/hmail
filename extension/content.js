@@ -208,8 +208,12 @@
       var start = hasSel ? s : 0, end = hasSel ? e : value.length;
       var plain = value.slice(start, end);
       if (!plain.trim()) return { ok: false, reason: "Nothing to seal in that field." };
-      var token = await sealText(circle, plain);
+      el.setAttribute(SEALING_ATTR, "1");
+      var token;
+      try { token = await sealText(circle, plain); }
+      finally { el.removeAttribute(SEALING_ATTR); }
       setInputValue(el, value.slice(0, start) + token + value.slice(end));
+      markField(el);
       showInspector(plain, token);
       if (!userChose && !secure) setSecure("on");
       return { ok: true, sealed: plain.length };
@@ -222,11 +226,15 @@
       if (!inside) doc.execCommand("selectAll", false, null);
       var text = doc.getSelection().toString();
       if (!text.trim()) return { ok: false, reason: "Nothing to seal in that field." };
-      var tok = await sealText(circle, text);
+      el.setAttribute(SEALING_ATTR, "1");
+      var tok;
+      try { tok = await sealText(circle, text); }
+      finally { el.removeAttribute(SEALING_ATTR); }
       // insertText keeps the editor's own undo stack and change events intact.
       if (!doc.execCommand("insertText", false, tok)) {
         return { ok: false, reason: "This editor wouldn't accept the sealed text." };
       }
+      markField(el);
       showInspector(text, tok);
       if (!userChose && !secure) setSecure("on");
       return { ok: true, sealed: text.length };
@@ -437,6 +445,7 @@
   /** Reveal now, and keep revealing what the page adds, until it's closed. */
   async function reveal(circlesByKid) {
     revealCircles = circlesByKid;
+    markFields(document.body);
     var stats = { opened: 0, locked: 0 };
     await revealIn(document.body, circlesByKid, stats);
     await revealSpanning(document.body, circlesByKid, stats);
@@ -566,6 +575,31 @@
   }
 
   /**
+   * The first sealed token on this page, shortened for display, or null.
+   * This is a real fragment of the ciphertext — what the popup's state line
+   * shows. No key is needed to find it.
+   */
+  function firstToken() {
+    var re = /h\s*y\s*1\s*\.[A-Za-z0-9_-]{11}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{20,}~/;
+    function pick(s) {
+      if (!s) return null;
+      var m = re.exec(String(s).replace(/\s+/g, ""));
+      return m ? m[0].slice(0, 18) + "…~" : null;
+    }
+    var root = document.body || document.documentElement;
+    var fs = root.querySelectorAll("input,textarea,[contenteditable='true'],[contenteditable='']");
+    for (var i = 0; i < fs.length; i++) { var v = pick(fieldValue(fs[i])); if (v) return v; }
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    var n;
+    while ((n = walker.nextNode())) {
+      if (isInsideEditable(n)) continue;
+      var t = pick(n.nodeValue);
+      if (t) return t;
+    }
+    return null;
+  }
+
+  /**
    * Run on every page, but ask for keys only if the page actually has sealed
    * text. A page without any never causes the worker to hand out a key.
    * `getCircles` returns a promise of { kid: circle } (or null).
@@ -595,14 +629,106 @@
     }
   }
 
+  // ---- sealed fields --------------------------------------------------------
+  // A field that holds sealed text, or one you are sealing right now, looks
+  // plainly different from an ordinary field: a solid lavender ring, a tint and
+  // a "sealed" tag on the right, and while a seal is in flight a pulsing ring.
+  // This is per-field and independent of the page-wide secure look, so what has
+  // been encrypted is unmistakable at a glance, on any site.
+  var SEALED_ATTR = "data-hyphae-sealed";
+  var SEALING_ATTR = "data-hyphae-sealing";
+  var sealedSheet = null;
+  var LOCK_URI =
+    "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='84'%20height='22'%3E" +
+    "%3Crect%20width='84'%20height='22'%20rx='11'%20fill='%236d5cc0'/%3E" +
+    "%3Cpath%20d='M14%2010V8a3%203%200%200%201%206%200v2'%20fill='none'%20stroke='%23fff'%20stroke-width='1.5'/%3E" +
+    "%3Crect%20x='12'%20y='10'%20width='10'%20height='7'%20rx='1.5'%20fill='%23fff'/%3E" +
+    "%3Ctext%20x='28'%20y='15'%20font-family='system-ui,sans-serif'%20font-size='11'%20fill='%23fff'%3Esealed%3C/text%3E%3C/svg%3E";
+  var SEALED_CSS =
+    "[data-hyphae-sealed]{background-color:rgba(147,139,178,.16)!important;" +
+    "box-shadow:inset 0 0 0 2px #6d5cc0,0 0 0 3px rgba(109,92,192,.20)!important;" +
+    "caret-color:#5a46a8!important;" +
+    "background-image:url(\"" + LOCK_URI + "\")!important;" +
+    "background-repeat:no-repeat!important;background-position:right 10px center!important;" +
+    "background-size:84px 22px!important}" +
+    "[data-hyphae-sealed]:focus{box-shadow:inset 0 0 0 2px #5a46a8,0 0 0 4px rgba(109,92,192,.30)!important}" +
+    "[data-hyphae-sealing]{box-shadow:inset 0 0 0 2px #938bb2,0 0 0 4px rgba(147,139,178,.35)!important;" +
+    "animation:hyphae-seal .8s ease-in-out infinite}" +
+    "@keyframes hyphae-seal{0%,100%{box-shadow:inset 0 0 0 2px #938bb2,0 0 0 4px rgba(147,139,178,.22)}" +
+    "50%{box-shadow:inset 0 0 0 2px #6d5cc0,0 0 0 6px rgba(109,92,192,.42)}}" +
+    "@media (prefers-reduced-motion:reduce){[data-hyphae-sealing]{animation:none}}";
+
+  function ensureSealedSheet() {
+    try {
+      if (!sealedSheet) { sealedSheet = new CSSStyleSheet(); sealedSheet.replaceSync(SEALED_CSS); }
+      if (document.adoptedStyleSheets.indexOf(sealedSheet) === -1) {
+        document.adoptedStyleSheets = document.adoptedStyleSheets.concat([sealedSheet]);
+      }
+    } catch (e) { /* a page that forbids it: the field keeps its normal look */ }
+  }
+
+  function isTextField(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.hasAttribute && el.hasAttribute("data-hyphae")) return false; // hyphae's own fields
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName === "INPUT") {
+      var t = (el.getAttribute("type") || "text").toLowerCase();
+      return t !== "password" && ["text", "search", "email", "url", "tel", ""].indexOf(t) !== -1;
+    }
+    return el.isContentEditable === true;
+  }
+  function fieldValue(el) {
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return el.value || "";
+    return el.innerText || el.textContent || "";
+  }
+  /** Mark one field as holding sealed text, or clear it. */
+  function markField(el) {
+    if (!isTextField(el)) return;
+    var v = fieldValue(el);
+    if (v.indexOf("~") !== -1 && HyCrypto.hasToken(v)) {
+      ensureSealedSheet();
+      el.setAttribute(SEALED_ATTR, "1");
+    } else if (el.hasAttribute && el.hasAttribute(SEALED_ATTR)) {
+      el.removeAttribute(SEALED_ATTR);
+    }
+  }
+  /** Mark every text field under `root` (or the page). */
+  function markFields(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var els = scope.querySelectorAll("input,textarea,[contenteditable='true'],[contenteditable='']");
+    for (var i = 0; i < els.length; i++) markField(els[i]);
+  }
+  /** Mark now, and keep marking: fields you type into, and fields the page adds. */
+  function watchFields() {
+    markFields(document.body || document.documentElement);
+    ["input", "change", "paste", "blur"].forEach(function (t) {
+      document.addEventListener(t, function (e) {
+        if (isTextField(e.target)) setTimeout(function () { markField(e.target); }, 0);
+      }, true);
+    });
+    if (document.body) {
+      var fo = new MutationObserver(function (muts) {
+        muts.forEach(function (m) {
+          m.addedNodes.forEach(function (node) {
+            if (node.nodeType === 1) markFields(node);
+          });
+        });
+      });
+      fo.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
   // Shared with the site adapters (gmail.js): the same encoder the reader decodes.
   var rich = { encode: richEncode, render: richRender, prefix: RICH_PREFIX };
 
   window.__hyphae = {
     rich: rich,
     sealFocused: sealFocused, reveal: reveal, setLens: setLens, detect: detect, autoStart: autoStart,
+    markFields: markFields, peek: firstToken,
     setSecure: function (mode) { if (mode !== "state") userChose = true; return setSecure(mode); },
   };
+
+  watchFields();
 
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (msg, _sender, send) {
@@ -622,6 +748,10 @@
       if (msg.hyphae === "secure") {
         if (msg.mode !== "state") userChose = true;
         send(setSecure(msg.mode || "toggle"));
+        return;
+      }
+      if (msg.hyphae === "peek") {
+        send({ ok: true, token: firstToken() });
         return;
       }
     });

@@ -117,6 +117,7 @@
       if (r && r.ok) {
         say("Sealed " + r.sealed + " characters for “" + c.name + "”.", "ok");
         tell("seal", { url: tab.url, circleKid: c.kid });
+        loadLens();
       } else { say((r && r.reason) || "Couldn't seal that.", "err"); }
     } catch (e) {
       say("hyphae can't run on this page.", "err");
@@ -141,7 +142,7 @@
   // The one switch: encryption on or off for this page.
   async function paintSecure(on) {
     $("secure").checked = !!on;
-    $("secureLabel").textContent = on ? "Encryption on — page is protected" : "Encryption off — the site's view";
+    $("secureLabel").textContent = on ? "Encrypt this page: ON" : "Encrypt this page: OFF";
   }
   async function loadSecure() {
     try {
@@ -151,7 +152,35 @@
       if (r && r.ok) paintSecure(r.secure);
     } catch (e) {
       $("secure").disabled = true;
-      $("secureLabel").textContent = "Encryption (can't run on this page)";
+      $("secureLabel").textContent = "Encrypt this page: —";
+    }
+  }
+
+  // The state line: the page's real state and a real fragment of its ciphertext.
+  function paintLens(st, token) {
+    st = st || {};
+    if (!st.secure && !st.count && !token) {
+      $("lensText").textContent = "the site sees everything you type";
+      return;
+    }
+    var site = token || "hy1·…~";
+    if (st.secure && st.lens === "site") {
+      $("lensText").textContent = "the site sees  " + site + "  — tap to hide";
+    } else if (st.secure) {
+      $("lensText").textContent = "you see ●●●" + (st.count ? " (" + st.count + ")" : "") + "  ⇄  " + site;
+    } else {
+      $("lensText").textContent = "encryption off · the site sees  " + site;
+    }
+  }
+  async function loadLens() {
+    try {
+      var tab = await activeTab();
+      await inject(tab);
+      var st = await chrome.tabs.sendMessage(tab.id, { hyphae: "secure", mode: "state" });
+      var pk = await chrome.tabs.sendMessage(tab.id, { hyphae: "peek" });
+      paintLens(st, pk && pk.token);
+    } catch (e) {
+      $("lensText").textContent = "hyphae can't run on this page";
     }
   }
   $("secure").addEventListener("change", async function () {
@@ -163,6 +192,7 @@
       if (!r || !r.ok) throw new Error("no reply");
       paintSecure(r.secure);
       say(r.secure ? "Encryption on: you see what your circle sealed." : "Encryption off: this is what the site sees.", "ok");
+      loadLens();
     } catch (e) {
       $("secure").checked = !want;
       say("hyphae can't run on this page.", "err");
@@ -179,6 +209,7 @@
       say(r.lens === "plain"
         ? "Showing what YOU see (plaintext)."
         : "Showing what the SITE sees (ciphertext).", "ok");
+      loadLens();
     } catch (e) {
       say("hyphae can't run on this page.", "err");
     }
@@ -301,5 +332,6 @@
   load();
   loadAuto();
   loadSecure();
+  loadLens();
   loadUpdate().catch(function () { /* no banner */ });
 })();
