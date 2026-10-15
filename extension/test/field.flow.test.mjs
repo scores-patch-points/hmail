@@ -41,7 +41,14 @@ Object.defineProperty(w.HTMLElement.prototype, "isContentEditable", {
 });
 // what the popup's inject() provides: crypto.js + content.js in the isolated world
 w.chrome = {
-  runtime: { lastError: null, onMessage: { addListener() {} }, sendMessage(_m, cb) { if (cb) setTimeout(() => cb(null), 0); } },
+  runtime: { lastError: null, onMessage: { addListener() {} }, sendMessage(msg, cb) {
+    if (msg && msg.hyphae === "get-circles") {
+      const r = w.__hyphaeTestCircles || null;
+      if (cb) setTimeout(() => cb(r), 0);
+      return;
+    }
+    if (cb) setTimeout(() => cb(null), 0);
+  } },
   storage: { local: { get() { return Promise.resolve({}); }, set() { return Promise.resolve(); } } },
 };
 w.eval(fs.readFileSync(path.join(ext, "crypto.js"), "utf8"));
@@ -114,6 +121,51 @@ ok(!!H && !!hy, "crypto.js and content.js loaded into the page");
   const r6 = await hy.sealFocused(circle);
   ok(r6 && r6.ok && /hy1\./.test(ce.textContent), "a contenteditable seals too: " + JSON.stringify(r6));
   ok(ce.hasAttribute("data-hyphae-sealed"), "the editor is marked sealed");
+
+  // ---- 7. auto-seal on activation: the site never retains plaintext --------------
+  // Start clean: off cancels any pending timers from the steps above.
+  hy.setSecure("off");
+  w.__hyphaeTestCircles = { circles: { [circle.kid]: circle }, active: circle.kid };
+  hy.setSecure("on");
+  // leaving a field seals it at once (no wait)
+  const auto1 = d.createElement("input"); auto1.type = "text"; d.body.appendChild(auto1);
+  auto1.value = "meet at noon";
+  auto1.focus();
+  auto1.dispatchEvent(new w.Event("blur", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 400));
+  ok(/^hy1\./.test(auto1.value), "leaving the field seals it: " + auto1.value.slice(0, 20) + "…");
+  ok(auto1.value.indexOf("meet at noon") === -1, "no plaintext retained after leaving");
+  ok(auto1.hasAttribute("data-hyphae-sealed"), "the auto-sealed field is marked");
+  // a pause seals it too, without Send and without the shortcut
+  const auto2 = d.createElement("input"); auto2.type = "text"; d.body.appendChild(auto2);
+  auto2.value = "call me back";
+  auto2.focus();
+  auto2.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 1700));
+  ok(/^hy1\./.test(auto2.value), "a pause seals the field on its own");
+  ok(auto2.value.indexOf("call me") === -1, "no plaintext retained after the pause");
+  // a field holding only a token is left alone (never nested)
+  const before = auto1.value;
+  auto1.value = before;
+  auto1.dispatchEvent(new w.Event("blur", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 400));
+  ok(auto1.value === before, "a pure token is left alone, not re-sealed");
+  // a token you cannot open is left alone (never nested under your circle)
+  const stranger = H.newCircle("stranger");
+  const lockedTok = await H.seal(stranger, "not yours");
+  const auto3 = d.createElement("input"); auto3.type = "text"; d.body.appendChild(auto3);
+  auto3.value = "prefix " + lockedTok;
+  auto3.dispatchEvent(new w.Event("blur", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 400));
+  ok(auto3.value.indexOf(lockedTok) !== -1, "a locked token is left alone, never nested");
+  // turning protection off stops it
+  hy.setSecure("off");
+  const auto4 = d.createElement("input"); auto4.type = "text"; d.body.appendChild(auto4);
+  auto4.value = "plain when off";
+  auto4.dispatchEvent(new w.Event("blur", { bubbles: true }));
+  auto4.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 1700));
+  ok(auto4.value === "plain when off" && !auto4.hasAttribute("data-hyphae-sealed"), "off means off: plaintext stays, nothing marked");
 
   console.log(`\nfield flow: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

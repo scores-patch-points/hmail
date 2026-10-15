@@ -19,6 +19,11 @@ password fields. (Turn the off switch in the popup to run only where you invoke 
 6. To let someone read it, give them the circle: either the key string (**Copy key**) or, better,
    through the hub (below).
 
+When protection is on for a page, hyphae also seals on its own — a pause seals an
+input/textarea, leaving any field seals it at once — so the site never retains plaintext
+without waiting for Send. Gmail/Drive use their own adapters; a sealed token you cannot
+open is never touched.
+
 ## Sealed token
 
 ```

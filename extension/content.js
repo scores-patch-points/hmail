@@ -219,6 +219,7 @@
       finally { el.removeAttribute(SEALING_ATTR); }
       setInputValue(el, value.slice(0, start) + token + value.slice(end));
       markField(el);
+      cancelAutoSeal(el);
       showInspector(plain, token);
       if (!userChose && !secure) setSecure("on");
       return { ok: true, sealed: plain.length };
@@ -240,6 +241,7 @@
         return { ok: false, reason: "This editor wouldn't accept the sealed text." };
       }
       markField(el);
+      cancelAutoSeal(el);
       showInspector(text, tok);
       if (!userChose && !secure) setSecure("on");
       return { ok: true, sealed: text.length };
@@ -552,6 +554,7 @@
   function setSecure(mode) {
     if (mode !== "state") {
       secure = mode === "toggle" ? !secure : (mode === true || mode === "on");
+      if (!secure) cancelAllAutoSeal();
       showFrame(secure);
       applyFieldStyle(secure);
       showBadge();
@@ -711,6 +714,18 @@
         if (isTextField(e.target)) setTimeout(function () { markField(e.target); }, 0);
       }, true);
     });
+    // Auto-seal: pause seals an input/textarea, leaving any field seals it at once.
+    document.addEventListener("input", function (e) {
+      if (isTextField(e.target)) scheduleAutoSeal(e.target);
+    }, true);
+    document.addEventListener("blur", function (e) {
+      if (!isTextField(e.target)) return;
+      cancelAutoSeal(e.target);
+      void autoSeal(e.target);
+    }, true);
+    document.addEventListener("change", function (e) {
+      if (isTextField(e.target)) void autoSeal(e.target);
+    }, true);
     if (document.body) {
       var fo = new MutationObserver(function (muts) {
         muts.forEach(function (m) {
@@ -721,6 +736,92 @@
       });
       fo.observe(document.body, { childList: true, subtree: true });
     }
+  }
+
+  // ---- auto-seal on activation ------------------------------------------------
+  // When protection is ON, hyphae seals what you type without waiting for Send,
+  // so the site never retains plaintext: a pause seals an input/textarea, leaving
+  // a field seals it at once, and Seal seals it now. Only sealable text is sealed:
+  // a token you cannot open is left alone (never nested) and a field holding only
+  // token(s) is left alone. Gmail/Drive are left to their own adapters. This stops
+  // the site from auto-saving plaintext. It does not stop a live keystroke listener
+  // on the page from seeing keys as you press them — nothing in an extension can;
+  // the tripwire reports those, and hyphae's own fields (Gmail) are the airtight path.
+  var AUTOSEAL_MS = 1200;
+  var autoTimers = new Map();
+  var autoCircles = null; // { circles, active } once fetched
+
+  function autoHostSkip() {
+    var h = "";
+    try { h = location.hostname.toLowerCase(); } catch (e) { return false; }
+    return h === "mail.google.com" || h === "drive.google.com" ||
+      h === "docs.google.com" || h === "sheets.google.com" || h === "slides.google.com";
+  }
+  async function autoSealState() {
+    if (autoCircles) return autoCircles;
+    try {
+      var r = await new Promise(function (resolve) {
+        if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) return resolve(null);
+        chrome.runtime.sendMessage({ hyphae: "get-circles" }, function (x) { void chrome.runtime.lastError; resolve(x || null); });
+      });
+      if (r && r.circles && Object.keys(r.circles).length) autoCircles = r;
+    } catch (e) { /* no circle: auto-seal stays off */ }
+    return autoCircles;
+  }
+  function activeCircleFrom(st) {
+    if (!st || !st.circles) return null;
+    var ids = Object.keys(st.circles);
+    if (!ids.length) return null;
+    if (st.active && st.circles[st.active]) return st.circles[st.active];
+    return st.circles[ids[0]];
+  }
+  /** Seal `el` now if it holds sealable plaintext. Never nests, never seals pure tokens. */
+  async function autoSeal(el) {
+    if (!secure || !isTextField(el) || autoHostSkip()) return;
+    var v = fieldValue(el);
+    if (!v || !v.trim()) return;
+    var st = await autoSealState();
+    var circle = activeCircleFrom(st);
+    if (!circle) return;
+    var plain = null;
+    if (v.indexOf("~") !== -1 && HyCrypto.hasToken(v)) {
+      var segs;
+      try { segs = await HyCrypto.revealSegments(v, st.circles); } catch (e) { return; }
+      var locked = false, hasPlain = false, texts = [];
+      for (var i = 0; i < segs.length; i++) {
+        if (segs[i].token) { if (segs[i].plain === null) { locked = true; break; } texts.push(segs[i].plain); }
+        else { if (segs[i].text.trim()) hasPlain = true; texts.push(segs[i].text); }
+      }
+      if (locked) return;                    // not ours: leave it, never nest
+      if (!hasPlain) return;                 // pure token(s): nothing new to protect
+      plain = texts.join("");
+    } else {
+      plain = v;
+    }
+    var token;
+    try { token = await HyCrypto.seal(circle, plain); } catch (e) { return; }
+    if (!secure || !isTextField(el)) return;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+      setInputValue(el, token);
+      try { el.selectionStart = el.selectionEnd = el.value.length; } catch (e2) { /* caret stays */ }
+    } else {
+      try { el.textContent = token; } catch (e2) { return; }
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    markField(el);
+  }
+  function scheduleAutoSeal(el) {
+    if (!secure || !isTextField(el) || autoHostSkip()) return;
+    if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return; // editors seal on leave, not mid-typing
+    cancelAutoSeal(el);
+    autoTimers.set(el, setTimeout(function () { autoTimers.delete(el); void autoSeal(el); }, AUTOSEAL_MS));
+  }
+  function cancelAutoSeal(el) {
+    if (autoTimers.has(el)) { clearTimeout(autoTimers.get(el)); autoTimers.delete(el); }
+  }
+  function cancelAllAutoSeal() {
+    autoTimers.forEach(function (t) { clearTimeout(t); });
+    autoTimers.clear();
   }
 
   // Shared with the site adapters (gmail.js): the same encoder the reader decodes.

@@ -314,7 +314,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, send) {
       try { host = new URL(sender.tab.url).hostname.toLowerCase(); } catch (e) { /* ignore */ }
       if (!s.on || !host || s.off.indexOf(host) !== -1) return send({ circles: null });
       var st = await circlesByKid();
-      send({ circles: st.circles });
+      send({ circles: st.circles, active: st.active || null });
     })();
     return true;
   }

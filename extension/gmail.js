@@ -46,7 +46,10 @@
           chrome.storage.local.get(["circles", "active", "encryptByDefault"], function (d) {
             circles = (d && d.circles) || {};
             activeKid = (d && d.active) || Object.keys(circles)[0] || null;
-            defaultOn = !!(d && d.encryptByDefault);
+            // On unless the person opted out: every new compose opens inside hyphae's
+            // fields, so Google never receives the keystrokes in the first place.
+            // Interception happens at the field, not at Send.
+            defaultOn = !d || d.encryptByDefault !== false;
             resolve();
           });
           return;
